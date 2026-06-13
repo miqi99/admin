@@ -67,13 +67,16 @@ h1{font-size:17px;font-weight:700;letter-spacing:-.01em}
 .qa-preview.show{display:block}
 .qa-pv-item{padding:7px 12px;border-bottom:1px solid var(--line);color:#4338ca;word-break:break-all}
 .qa-pv-item:last-child{border-bottom:none}
-/* subscription links */
-.subs{border:1px solid var(--border);border-radius:12px;overflow:hidden}
-.subs-h{font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;padding:11px 14px;background:var(--soft);border-bottom:1px solid var(--line)}
-.sub-i{display:flex;align-items:center;justify-content:space-between;width:100%;text-align:left;padding:12px 14px;font-size:13px;font-weight:600;color:#334155;background:#fff;border:none;border-bottom:1px solid var(--line);cursor:pointer;font-family:inherit;transition:background .12s}
-.sub-i:last-child{border-bottom:none}.sub-i:hover{background:#f8fafc}.sub-i.copied{color:var(--green);background:#ecfdf5}
-.sub-i::after{content:'复制';font-size:11px;color:#cbd5e1;font-weight:500}
-.sub-i.copied::after{content:'✓'}
+/* subscription pills */
+.sub-bar{display:flex;align-items:center;justify-content:center;gap:10px;padding:4px 0 8px;flex-wrap:wrap}
+.sub-pill{display:inline-flex;align-items:center;gap:6px;padding:9px 20px;border-radius:999px;border:none;font-size:13px;font-weight:600;color:#475569;background:var(--panel);cursor:pointer;font-family:inherit;box-shadow:0 1px 2px rgba(0,0,0,.04),0 0 0 1px rgba(0,0,0,.04);transition:all .2s cubic-bezier(.4,0,.2,1);position:relative;overflow:hidden}
+.sub-pill::before{content:'';position:absolute;inset:0;border-radius:999px;opacity:0;transition:opacity .2s;background:linear-gradient(135deg,rgba(37,99,235,.06),rgba(96,165,250,.06))}
+.sub-pill:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(37,99,235,.12),0 0 0 1px rgba(37,99,235,.15);color:#1e40af}
+.sub-pill:hover::before{opacity:1}
+.sub-pill:active{transform:translateY(0);transition:all .08s}
+.sub-pill.copied{color:#065f46;background:linear-gradient(135deg,#ecfdf5,#d1fae5);box-shadow:0 0 0 2px #86efac,0 4px 16px rgba(16,185,129,.15);animation:copiedPulse .6s ease-out}
+.sub-pill.copied::before{display:none}
+@keyframes copiedPulse{0%{box-shadow:0 0 0 0 rgba(16,185,129,.4),0 0 0 2px #86efac}100%{box-shadow:0 0 0 12px rgba(16,185,129,0),0 0 0 2px #86efac}}
 </style></head><body>
 <div class="hdr"><div class="hdr-in">
   <div class="logo">⚡</div><h1>管理面板</h1>
@@ -85,14 +88,40 @@ h1{font-size:17px;font-weight:700;letter-spacing:-.01em}
 </div></div>
 <div class="wrap">
 
-  <!-- Subscription links at top -->
-  <div class="subs">
-    <div class="subs-h">订阅链接（点击复制）</div>
-    <button type="button" class="sub-i" data-q="">自适应订阅</button>
-    <button type="button" class="sub-i" data-q="?base64">Base64 订阅</button>
-    <button type="button" class="sub-i" data-q="?target=clash">Clash 订阅</button>
-    <button type="button" class="sub-i" data-q="?target=singbox">Sing-box 订阅</button>
-    <button type="button" class="sub-i" data-q="?target=plain">节点链接（明文）</button>
+  <!-- Subscription pills -->
+  <div class="sub-bar">
+    <button class="sub-pill" data-q="">⚡ 自适应</button>
+    <button class="sub-pill" data-q="?base64">📦 Base64</button>
+    <button class="sub-pill" data-q="?target=clash">🔺 Clash</button>
+    <button class="sub-pill" data-q="?target=singbox">🧩 Sing-Box</button>
+    <button class="sub-pill" data-q="?target=plain">📋 明文</button>
+  </div>
+
+  <!-- Unified IP + API list -->
+  <div class="card">
+    <div class="ip-head">
+      <span class="t">优选列表</span>
+      <span class="badge" id="ipCountBadge">自动</span>
+    </div>
+    <textarea class="ip-ta" id="ipList" placeholder="每行一个条目，支持以下格式：&#10;&#10;IP:端口#备注 — 静态优选 IP&#10;api:URL:端口 — 实时 API，订阅时自动拉取&#10;&#10;留空则自动生成优选 IP"></textarea>
+    <div class="ip-hint">
+      格式示例：<code>1.2.3.4:443#电信优选</code> &nbsp; <code>api:https://api.example.com/ip:443</code> &nbsp; <code>api:https://api.example.com/ip</code>
+    </div>
+    <!-- Quick-add API bar -->
+    <div class="qa">
+      <span class="qa-label">快捷添加 API</span>
+      <input id="qaUrl" class="qa-u" placeholder="优选 API URL（https://...）">
+      <input id="qaPort" class="qa-p" value="443">
+      <button type="button" class="qa-b" id="qaBtn">获取并预览</button>
+      <span class="qa-st" id="qaSt"></span>
+    </div>
+    <!-- Action buttons: shown after fetch, ABOVE the preview list -->
+    <div class="qa-acts" id="qaActs">
+      <button type="button" class="qa-ab add-ip" id="qaAddIp">追加 IP</button>
+      <button type="button" class="qa-ab add-api" id="qaAddApi">追加为 API 源</button>
+    </div>
+    <!-- Preview list: scrollable, below the action buttons -->
+    <div class="qa-preview" id="qaPreview"></div>
   </div>
 
   <div class="grid">
@@ -121,33 +150,6 @@ h1{font-size:17px;font-weight:700;letter-spacing:-.01em}
         <label class="ck"><input type="checkbox" id="subEmoji"><span>Emoji</span></label>
       </div>
     </div>
-  </div>
-
-  <!-- Unified IP + API list -->
-  <div class="card">
-    <div class="ip-head">
-      <span class="t">优选列表</span>
-      <span class="badge" id="ipCountBadge">自动</span>
-    </div>
-    <textarea class="ip-ta" id="ipList" placeholder="每行一个条目，支持以下格式：&#10;&#10;IP:端口#备注 — 静态优选 IP&#10;api:URL:端口 — 实时 API，订阅时自动拉取&#10;&#10;留空则自动生成优选 IP"></textarea>
-    <div class="ip-hint">
-      格式示例：<code>1.2.3.4:443#电信优选</code> &nbsp; <code>api:https://api.example.com/ip:443</code> &nbsp; <code>api:https://api.example.com/ip</code>
-    </div>
-    <!-- Quick-add API bar -->
-    <div class="qa">
-      <span class="qa-label">快捷添加 API</span>
-      <input id="qaUrl" class="qa-u" placeholder="优选 API URL（https://...）">
-      <input id="qaPort" class="qa-p" value="443">
-      <button type="button" class="qa-b" id="qaBtn">获取并预览</button>
-      <span class="qa-st" id="qaSt"></span>
-    </div>
-    <!-- Action buttons: shown after fetch, ABOVE the preview list -->
-    <div class="qa-acts" id="qaActs">
-      <button type="button" class="qa-ab add-ip" id="qaAddIp">追加 IP</button>
-      <button type="button" class="qa-ab add-api" id="qaAddApi">追加为 API 源</button>
-    </div>
-    <!-- Preview list: scrollable, below the action buttons -->
-    <div class="qa-preview" id="qaPreview"></div>
   </div>
 
 </div>
@@ -254,7 +256,7 @@ function loadSublist(){
   }).catch(function(){});
 }
 
-Array.prototype.forEach.call(document.querySelectorAll('.sub-i'),function(b){
+Array.prototype.forEach.call(document.querySelectorAll('.sub-pill'),function(b){
   b.onclick=function(){
     var url=location.origin+'/sub'+b.getAttribute('data-q');
     function ok(){b.classList.add('copied');setTimeout(function(){b.classList.remove('copied');},1600);}
