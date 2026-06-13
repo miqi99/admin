@@ -144,7 +144,7 @@ h1{font-size:17px;font-weight:700;letter-spacing:-.01em}
     <div class="qa" style="flex-direction:column;align-items:stretch;gap:10px">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <span class="qa-label">导入测速结果</span>
-        <span style="font-size:12px;color:#94a3b8">粘贴 CloudflareSpeedTest 的 result.csv，按 <code style="background:#f1f5f9;padding:1px 5px;border-radius:4px;font-family:var(--mono);font-size:11px">IP#优选</code> 追加</span>
+        <span style="font-size:12px;color:#94a3b8">粘贴 CloudflareSpeedTest 的 result.csv，按 <code style="background:#f1f5f9;padding:1px 5px;border-radius:4px;font-family:var(--mono);font-size:11px">IP#优选N -- 速度/mb</code> 追加</span>
         <div style="flex:1"></div>
         <span class="qa-st" id="cstSt"></span>
         <button type="button" class="qa-b" id="cstBtn">导入优选IP</button>
@@ -308,11 +308,14 @@ V('cstBtn').onclick=function(){
   var ipRe=/^(?:\d{1,3}\.){3}\d{1,3}$|^[0-9a-fA-F:]+:[0-9a-fA-F:]+$/;
   var ta=V('ipList'),seen={};
   ta.value.split(/\r?\n/).forEach(function(l){var a=_bareAddr(l);if(a)seen[a]=1;});
-  var added=[];
+  var added=[],n=0;
   raw.split(/\r?\n/).forEach(function(l){
-    var f=(l.split(',')[0]||'').trim().replace(/^\[|\]$/g,'');
+    var cols=l.split(',');
+    var f=(cols[0]||'').trim().replace(/^\[|\]$/g,'');
     if(!f||!ipRe.test(f)||seen[f])return;
-    seen[f]=1;added.push(f+'#优选');
+    seen[f]=1;n++;
+    var spd=(cols[5]||'').trim();
+    added.push(f+'#优选'+n+(/^\d+(\.\d+)?$/.test(spd)?' -- '+spd+'/mb':''));
   });
   if(!added.length){st.className='qa-st er';st.textContent='未识别到新 IP';return;}
   ta.value=(ta.value.trim()?ta.value.trim()+'\n':'')+added.join('\n');
