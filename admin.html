@@ -39,15 +39,6 @@ h1{font-size:17px;font-weight:700;letter-spacing:-.01em}
 .ck{display:flex;align-items:center;gap:8px;cursor:pointer}
 .ck input{width:16px;height:16px;accent-color:var(--blue);cursor:pointer}
 .ck span{font-size:13px;color:#475569}
-/* connection test */
-.tf{display:flex;align-items:center;gap:8px;padding:12px 18px;border-top:1px solid var(--line)}
-.tf>label{font-size:13px;color:var(--muted);flex-shrink:0}
-.th2{flex:1;border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px;outline:none;font-family:inherit;min-width:0}
-.tp2{width:64px;border:1px solid var(--border);border-radius:8px;padding:7px;font-size:13px;text-align:center;outline:none;font-family:inherit}
-.th2:focus,.tp2:focus{border-color:#93c5fd}
-.tb{padding:7px 14px;border-radius:8px;background:#eff6ff;color:var(--blue);border:none;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap}
-.tb:hover{background:#dbeafe}
-#tr{font-size:13px;padding:0 18px 12px;min-height:16px}
 /* unified IP list */
 .ip-head{display:flex;align-items:center;justify-content:space-between;padding:15px 18px;border-bottom:1px solid var(--line)}
 .ip-head .t{font-size:14px;font-weight:700}
@@ -65,15 +56,17 @@ h1{font-size:17px;font-weight:700;letter-spacing:-.01em}
 .qa-b{padding:7px 14px;border-radius:8px;background:var(--blue);color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0}
 .qa-b:hover{background:var(--blue-d)}.qa-b:disabled{background:#94a3b8;cursor:not-allowed}
 .qa-st{font-size:12px;min-height:16px;flex-shrink:0}.qa-st.ok{color:var(--green)}.qa-st.er{color:var(--red)}
-/* API preview dropdown */
+/* API action buttons (shown after fetch) */
+.qa-acts{display:none;gap:8px;padding:0 18px 8px}
+.qa-acts.show{display:flex}
+.qa-ab{flex:1;padding:8px;border-radius:8px;border:none;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+.qa-ab.add-ip{background:#eff6ff;color:var(--blue)}.qa-ab.add-ip:hover{background:#dbeafe}
+.qa-ab.add-api{background:#ecfdf5;color:var(--green);border:1px solid #a7f3d0}.qa-ab.add-api:hover{background:#d1fae5}
+/* API preview list */
 .qa-preview{margin:0 18px 12px;border:1px solid var(--border);border-radius:10px;background:var(--soft);font-size:13px;font-family:var(--mono);max-height:160px;overflow-y:auto;display:none}
 .qa-preview.show{display:block}
 .qa-pv-item{padding:7px 12px;border-bottom:1px solid var(--line);color:#4338ca;word-break:break-all}
 .qa-pv-item:last-child{border-bottom:none}
-.qa-pv-acts{display:flex;gap:8px;padding:8px 12px;border-top:1px solid var(--line)}
-.qa-pv-btn{flex:1;padding:7px;border-radius:8px;border:none;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit}
-.qa-pv-btn.add-ip{background:#eff6ff;color:var(--blue)}.qa-pv-btn.add-ip:hover{background:#dbeafe}
-.qa-pv-btn.add-api{background:#ecfdf5;color:var(--green);border:1px solid #a7f3d0}.qa-pv-btn.add-api:hover{background:#d1fae5}
 /* subscription links */
 .subs{border:1px solid var(--border);border-radius:12px;overflow:hidden}
 .subs-h{font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;padding:11px 14px;background:var(--soft);border-bottom:1px solid var(--line)}
@@ -91,6 +84,17 @@ h1{font-size:17px;font-weight:700;letter-spacing:-.01em}
   <button class="btn" id="saveBtn">保存配置</button>
 </div></div>
 <div class="wrap">
+
+  <!-- Subscription links at top -->
+  <div class="subs">
+    <div class="subs-h">订阅链接（点击复制）</div>
+    <button type="button" class="sub-i" data-q="">自适应订阅</button>
+    <button type="button" class="sub-i" data-q="?base64">Base64 订阅</button>
+    <button type="button" class="sub-i" data-q="?target=clash">Clash 订阅</button>
+    <button type="button" class="sub-i" data-q="?target=singbox">Sing-box 订阅</button>
+    <button type="button" class="sub-i" data-q="?target=plain">节点链接（明文）</button>
+  </div>
+
   <div class="grid">
     <div class="card">
       <div class="card-h"><span class="ico">🔑</span>核心配置</div>
@@ -99,8 +103,6 @@ h1{font-size:17px;font-weight:700;letter-spacing:-.01em}
       <div class="field"><label>反代域名</label><input id="proxyip" placeholder="留空直连"></div>
       <div class="field"><label>ECH SNI</label><input id="echSni" placeholder="可选"></div>
       <div class="field"><label>ECH DNS</label><input id="echDns" placeholder="可选"></div>
-      <div class="tf"><label>连接测试</label><input id="th" class="th2" value="cloudflare.com"><span style="color:#cbd5e1">:</span><input id="tp" class="tp2" value="443"><button type="button" class="tb" id="testBtn">测试</button></div>
-      <div id="tr"></div>
     </div>
     <div class="card">
       <div class="card-h"><span class="ico">📡</span>订阅设置</div>
@@ -108,9 +110,9 @@ h1{font-size:17px;font-weight:700;letter-spacing:-.01em}
       <div class="field"><label>WS 路径</label><input id="wsPath" placeholder="/ws"></div>
       <div class="field"><label>TLS 指纹</label><select id="fingerprint"><option value="chrome">Chrome</option><option value="firefox">Firefox</option><option value="safari">Safari</option><option value="random">随机</option></select></div>
       <div class="field"><label>生成数量</label><input id="ipCount" type="number" min="1" max="100"></div>
-      <div class="field"><label>转换后端</label><select id="apiSel"><option value="">默认 · CM 负载均衡</option></select></div>
+      <div class="field"><label>转换后端</label><select id="apiSel"></select></div>
       <div class="field sub" id="apiTxtrow" style="display:none"><label>自定义</label><input id="apiTxt" placeholder="https://后端地址"></div>
-      <div class="field"><label>规则配置</label><select id="cfgSel"><option value="">默认 · 精简多模式</option></select></div>
+      <div class="field"><label>规则配置</label><select id="cfgSel"></select></div>
       <div class="field sub" id="cfgTxtrow" style="display:none"><label>自定义</label><input id="cfgTxt" placeholder="规则 ini 的 URL"></div>
       <div class="checks">
         <label class="ck"><input type="checkbox" id="enable0rtt"><span>0-RTT</span></label>
@@ -139,20 +141,18 @@ h1{font-size:17px;font-weight:700;letter-spacing:-.01em}
       <button type="button" class="qa-b" id="qaBtn">获取并预览</button>
       <span class="qa-st" id="qaSt"></span>
     </div>
+    <!-- Action buttons: shown after fetch, ABOVE the preview list -->
+    <div class="qa-acts" id="qaActs">
+      <button type="button" class="qa-ab add-ip" id="qaAddIp">追加 IP</button>
+      <button type="button" class="qa-ab add-api" id="qaAddApi">追加为 API 源</button>
+    </div>
+    <!-- Preview list: scrollable, below the action buttons -->
     <div class="qa-preview" id="qaPreview"></div>
   </div>
 
-  <div class="subs">
-    <div class="subs-h">订阅链接（点击复制）</div>
-    <button type="button" class="sub-i" data-q="">自适应订阅</button>
-    <button type="button" class="sub-i" data-q="?base64">Base64 订阅</button>
-    <button type="button" class="sub-i" data-q="?target=clash">Clash 订阅</button>
-    <button type="button" class="sub-i" data-q="?target=singbox">Sing-box 订阅</button>
-    <button type="button" class="sub-i" data-q="?target=plain">节点链接（明文）</button>
-  </div>
 </div>
 <script>
-var _qaIps=[];
+var _qaIps=[],_qaUrl='',_qaPort='443';
 var V=id=>document.getElementById(id);
 var val=id=>V(id).value.trim();
 var setv=(id,v)=>{V(id).value=v==null?'':v;};
@@ -195,39 +195,21 @@ V('saveBtn').onclick=function(){
   }).catch(function(){V('savedMsg').textContent='保存失败';}).finally(function(){b.disabled=false;b.textContent='保存配置';});
 };
 
-V('testBtn').onclick=function(){
-  var h=val('th'),p=val('tp'),r=V('tr');r.style.color='#94a3b8';r.textContent='测试中…';
-  fetch('/admin/test?host='+encodeURIComponent(h)+'&port='+p).then(function(res){return res.text().then(function(x){r.style.color=res.ok?'#0f9f6e':'#dc2626';r.textContent=(res.ok?'✓ ':'✗ ')+x;});}).catch(function(e){r.style.color='#dc2626';r.textContent='✗ '+e.message;});
-};
-
 /* Quick-add API */
 V('qaBtn').onclick=function(){
-  var url=val('qaUrl'),port=V('qaPort').value||'443',btn=V('qaBtn'),st=V('qaSt'),pv=V('qaPreview');
+  var url=val('qaUrl'),port=V('qaPort').value||'443',btn=V('qaBtn'),st=V('qaSt'),pv=V('qaPreview'),acts=V('qaActs');
   if(!url){st.className='qa-st er';st.textContent='请输入 URL';return;}
-  btn.disabled=true;btn.textContent='获取中…';st.textContent='';pv.classList.remove('show');pv.innerHTML='';_qaIps=[];
+  btn.disabled=true;btn.textContent='获取中…';st.textContent='';pv.classList.remove('show');pv.innerHTML='';acts.classList.remove('show');_qaIps=[];
   fetch('/admin/getapi?url='+encodeURIComponent(url)+'&port='+port).then(function(r){return r.json()}).then(function(j){
     if(j.ok&&j.data.length){
-      _qaIps=j.data;
+      _qaIps=j.data;_qaUrl=url;_qaPort=port;
+      /* Show preview list */
       pv.innerHTML='';
       j.data.forEach(function(ip){var d=document.createElement('div');d.className='qa-pv-item';d.textContent=ip;pv.appendChild(d);});
-      /* action buttons */
-      var acts=document.createElement('div');acts.className='qa-pv-acts';
-      var b1=document.createElement('button');b1.className='qa-pv-btn add-ip';b1.textContent='追加 '+j.data.length+' 条 IP';
-      b1.onclick=function(){
-        var ta=V('ipList');ta.value=(ta.value.trim()?ta.value.trim()+'\n':'')+_qaIps.join('\n');
-        updateBadge(ta.value);pv.classList.remove('show');_qaIps=[];
-        st.className='qa-st ok';st.textContent='✓ 已追加 IP';
-      };
-      var b2=document.createElement('button');b2.className='qa-pv-btn add-api';b2.textContent='追加为 API 源';
-      b2.onclick=function(){
-        var ta=V('ipList');
-        var apiLine='api:'+url+(port&&port!=='443'?':'+port:'');
-        ta.value=(ta.value.trim()?ta.value.trim()+'\n':'')+apiLine;
-        updateBadge(ta.value);pv.classList.remove('show');_qaIps=[];
-        st.className='qa-st ok';st.textContent='✓ 已追加 API';
-      };
-      acts.appendChild(b1);acts.appendChild(b2);pv.appendChild(acts);
       pv.classList.add('show');
+      /* Show action buttons ABOVE preview */
+      V('qaAddIp').textContent='追加 '+j.data.length+' 条 IP';
+      acts.classList.add('show');
       st.className='qa-st ok';st.textContent='✓ 获取到 '+j.data.length+' 条';
     }else{
       st.className='qa-st er';st.textContent=j.msg||'返回为空';
@@ -235,8 +217,28 @@ V('qaBtn').onclick=function(){
   }).catch(function(e){st.className='qa-st er';st.textContent='✗ '+e.message;}).finally(function(){btn.disabled=false;btn.textContent='获取并预览';});
 };
 
+V('qaAddIp').onclick=function(){
+  if(!_qaIps.length)return;
+  var ta=V('ipList');ta.value=(ta.value.trim()?ta.value.trim()+'\n':'')+_qaIps.join('\n');
+  updateBadge(ta.value);
+  V('qaPreview').classList.remove('show');V('qaPreview').innerHTML='';
+  V('qaActs').classList.remove('show');_qaIps=[];
+  V('qaSt').className='qa-st ok';V('qaSt').textContent='✓ 已追加 IP';
+};
+
+V('qaAddApi').onclick=function(){
+  if(!_qaUrl)return;
+  var ta=V('ipList');
+  var apiLine='api:'+_qaUrl+(_qaPort&&_qaPort!=='443'?':'+_qaPort:'');
+  ta.value=(ta.value.trim()?ta.value.trim()+'\n':'')+apiLine;
+  updateBadge(ta.value);
+  V('qaPreview').classList.remove('show');V('qaPreview').innerHTML='';
+  V('qaActs').classList.remove('show');_qaIps=[];_qaUrl='';
+  V('qaSt').className='qa-st ok';V('qaSt').textContent='✓ 已追加 API';
+};
+
 function fillSel(sel,data,cur){
-  while(sel.options.length>1)sel.remove(1);
+  while(sel.options.length)sel.remove(0);
   function add(p,l,v){var o=document.createElement('option');o.value=v;o.textContent=l;p.appendChild(o);}
   (data||[]).forEach(function(it){if(it&&it.options){var g=document.createElement('optgroup');g.label=it.label;it.options.forEach(function(o){add(g,o.label,o.value);});sel.appendChild(g);}else if(it)add(sel,it.label,it.value);});
   var c=document.createElement('option');c.value='__c';c.textContent='自定义…';sel.appendChild(c);
