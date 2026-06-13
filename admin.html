@@ -77,6 +77,17 @@ h1{font-size:17px;font-weight:700;letter-spacing:-.01em}
 .sub-pill.copied{color:#065f46;background:linear-gradient(135deg,#ecfdf5,#d1fae5);box-shadow:0 0 0 2px #86efac,0 4px 16px rgba(16,185,129,.15);animation:copiedPulse .6s ease-out}
 .sub-pill.copied::before{display:none}
 @keyframes copiedPulse{0%{box-shadow:0 0 0 0 rgba(16,185,129,.4),0 0 0 2px #86efac}100%{box-shadow:0 0 0 12px rgba(16,185,129,0),0 0 0 2px #86efac}}
+/* proxyip picker */
+.px-list{max-height:240px;overflow-y:auto;padding:0 18px;display:none}
+.px-list.show{display:block}
+.px-item{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--line);cursor:pointer;font-size:13px}
+.px-item:hover{background:var(--soft)}
+.px-item:last-child{border-bottom:none}
+.px-item input{width:15px;height:15px;accent-color:var(--blue);cursor:pointer;flex-shrink:0}
+.px-item .px-ip{font-family:var(--mono);font-size:12px;color:#4338ca;flex:1}
+.px-item .px-colo{font-size:11px;background:#f1f5f9;padding:1px 6px;border-radius:4px;color:#64748b;flex-shrink:0}
+.px-loading{text-align:center;padding:20px;color:#94a3b8;font-size:13px}
+.px-bar{display:flex;align-items:center;gap:8px;padding:10px 18px;border-top:1px solid var(--line)}
 </style></head><body>
 <div class="hdr"><div class="hdr-in">
   <div class="logo">⚡</div><h1>管理面板</h1>
@@ -129,9 +140,24 @@ h1{font-size:17px;font-weight:700;letter-spacing:-.01em}
       <div class="card-h"><span class="ico">🔑</span>核心配置</div>
       <div class="field"><label>UUID</label><input id="uuid" placeholder="必填"></div>
       <div class="field"><label>域名</label><input id="host" placeholder="your.domain.com"></div>
-      <div class="field"><label>反代域名</label><input id="proxyip" placeholder="留空直连"></div>
       <div class="field"><label>ECH SNI</label><input id="echSni" placeholder="可选"></div>
       <div class="field"><label>ECH DNS</label><input id="echDns" placeholder="可选"></div>
+    </div>
+    <div class="card">
+      <div class="card-h"><span class="ico">🔄</span>反代IP 配置</div>
+      <div class="field"><label>自定义</label><input id="proxyip" placeholder="域名 或 IP:端口，多个逗号分隔"></div>
+      <div class="field">
+        <label>扫描库</label>
+        <select id="pxCountry"><option value="">选择国家/地区…</option></select>
+      </div>
+      <div class="px-loading" id="pxLoading" style="display:none">加载中…</div>
+      <div class="px-list" id="pxList"></div>
+      <div class="px-bar" id="pxBar" style="display:none">
+        <span style="font-size:12px;color:#94a3b8" id="pxSelCount">已选 0</span>
+        <div style="flex:1"></div>
+        <button type="button" class="qa-b" id="pxAddSel">追加选中的 IP</button>
+        <button type="button" class="qa-b" id="pxAddAll" style="background:#64748b">追加全部</button>
+      </div>
     </div>
     <div class="card">
       <div class="card-h"><span class="ico">📡</span>订阅设置</div>
@@ -264,5 +290,85 @@ Array.prototype.forEach.call(document.querySelectorAll('.sub-pill'),function(b){
     else window.prompt('复制订阅链接：',url);
   };
 });
+
+/* === 反代IP 选择器 === */
+var _pxData=[],_pxLoaded={};
+
+// 加载国家列表
+function loadProxyCountries(){
+  fetch('/admin/proxyip.json').then(function(r){return r.json()}).then(function(j){
+    if(!j.ok||!j.countries)return;
+    var sel=V('pxCountry');
+    while(sel.options.length>1)sel.remove(1);
+    j.countries.forEach(function(c){
+      var o=document.createElement('option');
+      o.value=c.code;
+      o.textContent=(c.country_emoji||'')+' '+c.country_cn+' ('+c.count+' IP)';
+      sel.appendChild(o);
+    });
+  }).catch(function(){});
+}
+
+// 加载某国的 IP
+V('pxCountry').onchange=function(){
+  var code=this.value;
+  V('pxList').classList.remove('show');V('pxBar').style.display='none';
+  if(!code)return;
+  // 缓存
+  if(_pxLoaded[code]){renderPxList(code,_pxLoaded[code]);return;}
+  V('pxLoading').style.display='block';
+  fetch('/admin/proxyip.json?country='+code+'&limit=80').then(function(r){return r.json()}).then(function(j){
+    V('pxLoading').style.display='none';
+    if(!j.ok||!j.ips){V('pxList').innerHTML='<div class="px-loading">暂无数据</div>';V('pxList').classList.add('show');return;}
+    _pxLoaded[code]=j.ips;
+    renderPxList(code,j.ips);
+  }).catch(function(){
+    V('pxLoading').style.display='none';
+  });
+};
+
+function renderPxList(code,ips){
+  _pxData=ips;
+  var html='';
+  ips.forEach(function(ip,i){
+    html+='<label class="px-item">'
+      +'<input type="checkbox" value="'+i+'" class="px-cb">'
+      +'<span class="px-ip">'+ip.ip+':'+ip.port+'</span>'
+      +'<span class="px-colo">'+ip.colo+'</span>'
+      +'</label>';
+  });
+  V('pxList').innerHTML=html;
+  V('pxList').classList.add('show');
+  V('pxBar').style.display='flex';
+  updatePxCount();
+  // click on label toggles checkbox
+  V('pxList').addEventListener('change',function(e){
+    if(e.target.classList.contains('px-cb'))updatePxCount();
+  });
+}
+
+function updatePxCount(){
+  var cbs=V('pxList').querySelectorAll('.px-cb:checked');
+  V('pxSelCount').textContent='已选 '+cbs.length+' / '+_pxData.length;
+}
+
+// 追加选中的 IP 到反代IP输入框
+V('pxAddSel').onclick=function(){
+  var cbs=V('pxList').querySelectorAll('.px-cb:checked');
+  var picked=[];
+  cbs.forEach(function(cb){var d=_pxData[parseInt(cb.value)];if(d)picked.push(d.ip+':'+d.port);});
+  if(!picked.length)return;
+  var inp=V('proxyip'),cur=inp.value.trim();
+  inp.value=(cur?cur+', ':'')+picked.join(', ');
+};
+// 追加全部
+V('pxAddAll').onclick=function(){
+  var all=_pxData.map(function(d){return d.ip+':'+d.port;});
+  if(!all.length)return;
+  var inp=V('proxyip'),cur=inp.value.trim();
+  inp.value=(cur?cur+', ':'')+all.join(', ');
+};
+
+loadProxyCountries();
 </script>
 </body></html>
