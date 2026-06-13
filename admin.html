@@ -48,33 +48,32 @@ h1{font-size:17px;font-weight:700;letter-spacing:-.01em}
 .tb{padding:7px 14px;border-radius:8px;background:#eff6ff;color:var(--blue);border:none;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap}
 .tb:hover{background:#dbeafe}
 #tr{font-size:13px;padding:0 18px 12px;min-height:16px}
-/* IP + API two columns */
-.row2{display:grid;grid-template-columns:1fr 300px;gap:18px;align-items:start}
-@media(max-width:760px){.row2{grid-template-columns:1fr}}
+/* unified IP list */
 .ip-head{display:flex;align-items:center;justify-content:space-between;padding:15px 18px;border-bottom:1px solid var(--line)}
 .ip-head .t{font-size:14px;font-weight:700}
 .badge{font-size:12px;background:#eef2ff;color:#6d28d9;padding:2px 9px;border-radius:999px;font-weight:600}
-.ip-ta{width:100%;min-height:300px;border:none;padding:14px 18px;font-family:var(--mono);font-size:13px;color:#4338ca;background:#fff;resize:vertical;outline:none;line-height:2;display:block}
+.ip-ta{width:100%;min-height:260px;border:none;padding:14px 18px;font-family:var(--mono);font-size:13px;color:#4338ca;background:#fff;resize:vertical;outline:none;line-height:2;display:block}
 .ip-ta::placeholder{color:#c0c8d4}
-/* API panel */
-.ap{padding:16px;display:flex;flex-direction:column;gap:10px}
-.ap-r{display:flex;gap:7px}
-.ap-u{flex:1;border:1px solid var(--border);border-radius:8px;padding:8px 11px;font-size:13px;outline:none;font-family:inherit;min-width:0}
-.ap-p{width:54px;border:1px solid var(--border);border-radius:8px;padding:8px 4px;font-size:13px;text-align:center;outline:none;font-family:inherit;flex-shrink:0}
-.ap-u:focus,.ap-p:focus{border-color:#93c5fd}
-.ap-b{padding:8px 14px;border-radius:8px;background:var(--blue);color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0}
-.ap-b:hover{background:var(--blue-d)}.ap-b:disabled{background:#94a3b8}
-.ap-res{min-height:90px;max-height:170px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;background:var(--soft);font-size:13px;font-family:var(--mono)}
-.ap-ph{display:flex;align-items:center;justify-content:center;min-height:88px;color:#c0c8d4}
-.ap-it{padding:7px 12px;border-bottom:1px solid var(--line);color:#4338ca;word-break:break-all}
-.ap-it:last-child{border-bottom:none}
-.ap-st{font-size:13px;color:var(--muted);text-align:center;min-height:16px}.ap-st.ok{color:var(--green)}.ap-st.er{color:var(--red)}
-.ap-saved{display:flex;align-items:center;gap:8px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:9px;padding:8px 11px;font-size:12px;color:var(--green);font-family:var(--mono);word-break:break-all}
-.ap-saved span{flex:1}.ap-clr{border:none;background:none;color:var(--red);font-size:12px;cursor:pointer;flex-shrink:0;font-weight:600}
-.ap-acts{display:flex;gap:8px}
-.btn-ap{flex:1;padding:9px;border-radius:9px;background:var(--blue);color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
-.btn-ap:hover{background:var(--blue-d)}.btn-ap:disabled{background:#94a3b8}
-.btn-ap2{background:#ecfdf5;color:var(--green);border:1px solid #a7f3d0}.btn-ap2:hover{background:#d1fae5}
+.ip-hint{font-size:12px;color:#94a3b8;padding:8px 18px;border-top:1px solid var(--line);line-height:1.6}
+.ip-hint code{background:#f1f5f9;padding:1px 5px;border-radius:4px;font-family:var(--mono);font-size:11px}
+/* quick-add API bar */
+.qa{display:flex;align-items:center;gap:8px;padding:12px 18px;border-top:1px solid var(--line);flex-wrap:wrap}
+.qa-label{font-size:13px;color:var(--muted);font-weight:500;flex-shrink:0}
+.qa-u{flex:1;min-width:180px;border:1px solid var(--border);border-radius:8px;padding:7px 11px;font-size:13px;outline:none;font-family:inherit}
+.qa-p{width:56px;border:1px solid var(--border);border-radius:8px;padding:7px;font-size:13px;text-align:center;outline:none;font-family:inherit;flex-shrink:0}
+.qa-u:focus,.qa-p:focus{border-color:#93c5fd}
+.qa-b{padding:7px 14px;border-radius:8px;background:var(--blue);color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0}
+.qa-b:hover{background:var(--blue-d)}.qa-b:disabled{background:#94a3b8;cursor:not-allowed}
+.qa-st{font-size:12px;min-height:16px;flex-shrink:0}.qa-st.ok{color:var(--green)}.qa-st.er{color:var(--red)}
+/* API preview dropdown */
+.qa-preview{margin:0 18px 12px;border:1px solid var(--border);border-radius:10px;background:var(--soft);font-size:13px;font-family:var(--mono);max-height:160px;overflow-y:auto;display:none}
+.qa-preview.show{display:block}
+.qa-pv-item{padding:7px 12px;border-bottom:1px solid var(--line);color:#4338ca;word-break:break-all}
+.qa-pv-item:last-child{border-bottom:none}
+.qa-pv-acts{display:flex;gap:8px;padding:8px 12px;border-top:1px solid var(--line)}
+.qa-pv-btn{flex:1;padding:7px;border-radius:8px;border:none;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit}
+.qa-pv-btn.add-ip{background:#eff6ff;color:var(--blue)}.qa-pv-btn.add-ip:hover{background:#dbeafe}
+.qa-pv-btn.add-api{background:#ecfdf5;color:var(--green);border:1px solid #a7f3d0}.qa-pv-btn.add-api:hover{background:#d1fae5}
 /* subscription links */
 .subs{border:1px solid var(--border);border-radius:12px;overflow:hidden}
 .subs-h{font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;padding:11px 14px;background:var(--soft);border-bottom:1px solid var(--line)}
@@ -121,42 +120,39 @@ h1{font-size:17px;font-weight:700;letter-spacing:-.01em}
       </div>
     </div>
   </div>
-  <div class="row2">
-    <div class="card">
-      <div class="ip-head"><span class="t">优选 IP</span><span class="badge" id="ipCountBadge">自动</span></div>
-      <textarea class="ip-ta" id="ipList" placeholder="IP:端口#备注，每行一个&#10;留空则自动生成优选 IP"></textarea>
+
+  <!-- Unified IP + API list -->
+  <div class="card">
+    <div class="ip-head">
+      <span class="t">优选列表</span>
+      <span class="badge" id="ipCountBadge">自动</span>
     </div>
-    <div style="display:flex;flex-direction:column;gap:18px">
-      <div class="card">
-        <div class="card-h"><span class="ico">🔍</span>优选 API</div>
-        <div class="ap">
-          <div class="ap-saved" id="apSaved" style="display:none"></div>
-          <div class="ap-r">
-            <input id="apUrl" class="ap-u" placeholder="优选 API URL（https://...）">
-            <input id="apPort" class="ap-p" value="443">
-            <button type="button" class="ap-b" id="apBtn">获取</button>
-          </div>
-          <div class="ap-res" id="apRes"><div class="ap-ph">输入 URL 后点获取</div></div>
-          <div class="ap-st" id="apSt"></div>
-          <div class="ap-acts" id="apActs" style="display:none">
-            <button type="button" class="btn-ap btn-ap2" id="apAdd">追加结果</button>
-            <button type="button" class="btn-ap" id="apApi">追加API（实时）</button>
-          </div>
-        </div>
-      </div>
-      <div class="subs">
-        <div class="subs-h">订阅链接（点击复制）</div>
-        <button type="button" class="sub-i" data-q="">自适应订阅</button>
-        <button type="button" class="sub-i" data-q="?base64">Base64 订阅</button>
-        <button type="button" class="sub-i" data-q="?target=clash">Clash 订阅</button>
-        <button type="button" class="sub-i" data-q="?target=singbox">Sing-box 订阅</button>
-        <button type="button" class="sub-i" data-q="?target=plain">节点链接（明文）</button>
-      </div>
+    <textarea class="ip-ta" id="ipList" placeholder="每行一个条目，支持以下格式：&#10;&#10;IP:端口#备注 — 静态优选 IP&#10;api:URL:端口 — 实时 API，订阅时自动拉取&#10;&#10;留空则自动生成优选 IP"></textarea>
+    <div class="ip-hint">
+      格式示例：<code>1.2.3.4:443#电信优选</code> &nbsp; <code>api:https://api.example.com/ip:443</code> &nbsp; <code>api:https://api.example.com/ip</code>
     </div>
+    <!-- Quick-add API bar -->
+    <div class="qa">
+      <span class="qa-label">快捷添加 API</span>
+      <input id="qaUrl" class="qa-u" placeholder="优选 API URL（https://...）">
+      <input id="qaPort" class="qa-p" value="443">
+      <button type="button" class="qa-b" id="qaBtn">获取并预览</button>
+      <span class="qa-st" id="qaSt"></span>
+    </div>
+    <div class="qa-preview" id="qaPreview"></div>
+  </div>
+
+  <div class="subs">
+    <div class="subs-h">订阅链接（点击复制）</div>
+    <button type="button" class="sub-i" data-q="">自适应订阅</button>
+    <button type="button" class="sub-i" data-q="?base64">Base64 订阅</button>
+    <button type="button" class="sub-i" data-q="?target=clash">Clash 订阅</button>
+    <button type="button" class="sub-i" data-q="?target=singbox">Sing-box 订阅</button>
+    <button type="button" class="sub-i" data-q="?target=plain">节点链接（明文）</button>
   </div>
 </div>
 <script>
-var _ips=[];
+var _qaIps=[];
 var V=id=>document.getElementById(id);
 var val=id=>V(id).value.trim();
 var setv=(id,v)=>{V(id).value=v==null?'':v;};
@@ -170,12 +166,21 @@ fetch('/admin/config.json').then(function(r){return r.json()}).then(function(c){
   ['enable0rtt','skipCert','randomPort','subEmoji'].forEach(function(k){setck(k,c[k]);});
   V('ispTag').textContent=c.ispName||'通用';
   V('hostTag').textContent=c.host||'待配置';
-  var n=(c.customIPs||'').split('\n').filter(Boolean).length;
-  V('ipCountBadge').textContent=n?n+' 个':'自动';
-  if(c.customApiUrl)showSaved(c.customApiUrl);
+  updateBadge(c.customIPs||'');
   loadSublist();
 });
-function showSaved(url){var s=V('apSaved');s.style.display='flex';s.innerHTML='<span>实时API：'+url+'</span><button type="button" class="ap-clr" id="apClr">清除</button>';V('apClr').onclick=clearApi;}
+
+function updateBadge(text){
+  var lines=text.split('\n').filter(function(l){return l.trim()&&!l.trim().startsWith('#');});
+  var ips=0,apis=0;
+  lines.forEach(function(l){l.trim().startsWith('api:')?apis++:ips++;});
+  var parts=[];
+  if(ips)parts.push(ips+' IP');
+  if(apis)parts.push(apis+' API');
+  V('ipCountBadge').textContent=parts.length?parts.join(' + '):'自动';
+}
+
+V('ipList').addEventListener('input',function(){updateBadge(V('ipList').value);});
 
 V('saveBtn').onclick=function(){
   var body={uuid:val('uuid'),host:val('host'),proxyip:val('proxyip'),customIPs:val('ipList'),
@@ -195,29 +200,40 @@ V('testBtn').onclick=function(){
   fetch('/admin/test?host='+encodeURIComponent(h)+'&port='+p).then(function(res){return res.text().then(function(x){r.style.color=res.ok?'#0f9f6e':'#dc2626';r.textContent=(res.ok?'✓ ':'✗ ')+x;});}).catch(function(e){r.style.color='#dc2626';r.textContent='✗ '+e.message;});
 };
 
-function ph(el,t){el.innerHTML='';var d=document.createElement('div');d.className='ap-ph';d.textContent=t;el.appendChild(d);}
-V('apBtn').onclick=function(){
-  var url=val('apUrl'),port=V('apPort').value||'443',btn=V('apBtn'),res=V('apRes'),st=V('apSt'),acts=V('apActs');
-  if(!url){st.className='ap-st er';st.textContent='请输入 URL';return;}
-  btn.disabled=true;btn.textContent='获取中…';ph(res,'正在获取…');st.textContent='';acts.style.display='none';_ips=[];
+/* Quick-add API */
+V('qaBtn').onclick=function(){
+  var url=val('qaUrl'),port=V('qaPort').value||'443',btn=V('qaBtn'),st=V('qaSt'),pv=V('qaPreview');
+  if(!url){st.className='qa-st er';st.textContent='请输入 URL';return;}
+  btn.disabled=true;btn.textContent='获取中…';st.textContent='';pv.classList.remove('show');pv.innerHTML='';_qaIps=[];
   fetch('/admin/getapi?url='+encodeURIComponent(url)+'&port='+port).then(function(r){return r.json()}).then(function(j){
-    if(j.ok&&j.data.length){_ips=j.data;res.innerHTML='';_ips.forEach(function(ip){var d=document.createElement('div');d.className='ap-it';d.textContent=ip;res.appendChild(d);});st.className='ap-st ok';st.textContent='✓ 获取到 '+_ips.length+' 条';acts.style.display='flex';}
-    else{ph(res,'无数据');st.className='ap-st er';st.textContent=j.msg||'返回为空';}
-  }).catch(function(e){ph(res,'请求失败');st.className='ap-st er';st.textContent='✗ '+e.message;}).finally(function(){btn.disabled=false;btn.textContent='获取';});
+    if(j.ok&&j.data.length){
+      _qaIps=j.data;
+      pv.innerHTML='';
+      j.data.forEach(function(ip){var d=document.createElement('div');d.className='qa-pv-item';d.textContent=ip;pv.appendChild(d);});
+      /* action buttons */
+      var acts=document.createElement('div');acts.className='qa-pv-acts';
+      var b1=document.createElement('button');b1.className='qa-pv-btn add-ip';b1.textContent='追加 '+j.data.length+' 条 IP';
+      b1.onclick=function(){
+        var ta=V('ipList');ta.value=(ta.value.trim()?ta.value.trim()+'\n':'')+_qaIps.join('\n');
+        updateBadge(ta.value);pv.classList.remove('show');_qaIps=[];
+        st.className='qa-st ok';st.textContent='✓ 已追加 IP';
+      };
+      var b2=document.createElement('button');b2.className='qa-pv-btn add-api';b2.textContent='追加为 API 源';
+      b2.onclick=function(){
+        var ta=V('ipList');
+        var apiLine='api:'+url+(port&&port!=='443'?':'+port:'');
+        ta.value=(ta.value.trim()?ta.value.trim()+'\n':'')+apiLine;
+        updateBadge(ta.value);pv.classList.remove('show');_qaIps=[];
+        st.className='qa-st ok';st.textContent='✓ 已追加 API';
+      };
+      acts.appendChild(b1);acts.appendChild(b2);pv.appendChild(acts);
+      pv.classList.add('show');
+      st.className='qa-st ok';st.textContent='✓ 获取到 '+j.data.length+' 条';
+    }else{
+      st.className='qa-st er';st.textContent=j.msg||'返回为空';
+    }
+  }).catch(function(e){st.className='qa-st er';st.textContent='✗ '+e.message;}).finally(function(){btn.disabled=false;btn.textContent='获取并预览';});
 };
-V('apAdd').onclick=function(){
-  if(!_ips.length)return;var ta=V('ipList');ta.value=(ta.value.trim()?ta.value.trim()+'\n':'')+_ips.join('\n');
-  var b=V('apAdd');b.textContent='✓ 已追加';setTimeout(function(){b.textContent='追加结果';},2000);
-};
-V('apApi').onclick=function(){
-  var url=val('apUrl'),port=V('apPort').value||'443';if(!url){alert('请先输入 API URL');return;}
-  var b=V('apApi');b.disabled=true;b.textContent='保存中…';
-  fetch('/admin/setapiurl',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:url,port:port})}).then(function(r){return r.json()}).then(function(j){
-    if(j.ok){b.textContent='✓ 已保存';showSaved(url);}else b.textContent='保存失败';
-    setTimeout(function(){b.disabled=false;b.textContent='追加API（实时）';},2000);
-  }).catch(function(){b.textContent='保存失败';setTimeout(function(){b.disabled=false;b.textContent='追加API（实时）';},2000);});
-};
-function clearApi(){if(!confirm('确认清除已保存的实时API地址？'))return;fetch('/admin/clearapiurl',{method:'POST'}).then(function(){V('apSaved').style.display='none';V('apSaved').innerHTML='';});}
 
 function fillSel(sel,data,cur){
   while(sel.options.length>1)sel.remove(1);
