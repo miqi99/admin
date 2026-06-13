@@ -86,6 +86,7 @@ h1{font-size:17px;font-weight:700;letter-spacing:-.01em}
 .px-item input{width:15px;height:15px;accent-color:var(--blue);cursor:pointer;flex-shrink:0}
 .px-item .px-ip{font-family:var(--mono);font-size:12px;color:#4338ca;flex:1}
 .px-item .px-colo{font-size:11px;background:#f1f5f9;padding:1px 6px;border-radius:4px;color:#64748b;flex-shrink:0}
+.px-item .px-lat{font-size:12px;font-family:var(--mono);min-width:44px;text-align:right;flex-shrink:0;transition:color .3s}
 .px-loading{text-align:center;padding:20px;color:#94a3b8;font-size:13px}
 .px-bar{display:flex;align-items:center;gap:8px;padding:10px 18px;border-top:1px solid var(--line)}
 </style></head><body>
@@ -140,24 +141,9 @@ h1{font-size:17px;font-weight:700;letter-spacing:-.01em}
       <div class="card-h"><span class="ico">🔑</span>核心配置</div>
       <div class="field"><label>UUID</label><input id="uuid" placeholder="必填"></div>
       <div class="field"><label>域名</label><input id="host" placeholder="your.domain.com"></div>
+      <div class="field"><label>反代IP</label><input id="proxyip" placeholder="域名 或 IP:端口，多个逗号分隔"></div>
       <div class="field"><label>ECH SNI</label><input id="echSni" placeholder="可选"></div>
       <div class="field"><label>ECH DNS</label><input id="echDns" placeholder="可选"></div>
-    </div>
-    <div class="card">
-      <div class="card-h"><span class="ico">🔄</span>反代IP 配置</div>
-      <div class="field"><label>自定义</label><input id="proxyip" placeholder="域名 或 IP:端口，多个逗号分隔"></div>
-      <div class="field">
-        <label>扫描库</label>
-        <select id="pxCountry"><option value="">选择国家/地区…</option></select>
-      </div>
-      <div class="px-loading" id="pxLoading" style="display:none">加载中…</div>
-      <div class="px-list" id="pxList"></div>
-      <div class="px-bar" id="pxBar" style="display:none">
-        <span style="font-size:12px;color:#94a3b8" id="pxSelCount">已选 0</span>
-        <div style="flex:1"></div>
-        <button type="button" class="qa-b" id="pxAddSel">追加选中的 IP</button>
-        <button type="button" class="qa-b" id="pxAddAll" style="background:#64748b">追加全部</button>
-      </div>
     </div>
     <div class="card">
       <div class="card-h"><span class="ico">📡</span>订阅设置</div>
@@ -175,6 +161,26 @@ h1{font-size:17px;font-weight:700;letter-spacing:-.01em}
         <label class="ck"><input type="checkbox" id="randomPort"><span>随机端口</span></label>
         <label class="ck"><input type="checkbox" id="subEmoji"><span>Emoji</span></label>
       </div>
+    </div>
+  </div>
+
+  <!-- 反代IP 扫描库选择 -->
+  <div class="card">
+    <div class="ip-head">
+      <span class="t">🔄 从扫描库选反代IP</span>
+      <span class="badge" id="pxUpdated">…</span>
+    </div>
+    <div class="field">
+      <label>国家/地区</label>
+      <select id="pxCountry"><option value="">选择国家…</option></select>
+    </div>
+    <div class="px-loading" id="pxLoading" style="display:none">加载中…</div>
+    <div class="px-list" id="pxList"></div>
+    <div class="px-bar" id="pxBar" style="display:none">
+      <span style="font-size:12px;color:#94a3b8" id="pxSelCount">已选 0</span>
+      <div style="flex:1"></div>
+      <button type="button" class="qa-b" id="pxAddSel">追加选中</button>
+      <button type="button" class="qa-b" id="pxAddAll" style="background:#64748b">追加全部</button>
     </div>
   </div>
 
@@ -291,84 +297,75 @@ Array.prototype.forEach.call(document.querySelectorAll('.sub-pill'),function(b){
   };
 });
 
-/* === 反代IP 选择器 === */
+/* === 反代IP 扫描库选择 === */
 var _pxData=[],_pxLoaded={};
-
-// 加载国家列表
 function loadProxyCountries(){
+  var sel=V('pxCountry');
+  sel.options[0].textContent='加载中…';
   fetch('/admin/proxyip.json').then(function(r){return r.json()}).then(function(j){
-    if(!j.ok||!j.countries)return;
-    var sel=V('pxCountry');
-    while(sel.options.length>1)sel.remove(1);
-    j.countries.forEach(function(c){
-      var o=document.createElement('option');
-      o.value=c.code;
-      o.textContent=(c.country_emoji||'')+' '+c.country_cn+' ('+c.count+' IP)';
-      sel.appendChild(o);
-    });
-  }).catch(function(){});
+    while(sel.options.length)sel.remove(0);
+    if(!j.ok||!j.countries){sel.appendChild(createOpt('','加载失败'));return;}
+    V('pxUpdated').textContent=j.total+' IP · '+j.updated;
+    sel.appendChild(createOpt('','选择国家/地区…'));
+    j.countries.forEach(function(c){sel.appendChild(createOpt(c.code,(c.country_emoji||'')+' '+c.country_cn+' ('+c.count+' IP)'));});
+  }).catch(function(){sel.options[0].textContent='加载失败';});
 }
+function createOpt(v,t){var o=document.createElement('option');o.value=v;o.textContent=t;return o}
 
-// 加载某国的 IP
 V('pxCountry').onchange=function(){
-  var code=this.value;
-  V('pxList').classList.remove('show');V('pxBar').style.display='none';
+  var code=this.value;V('pxList').classList.remove('show');V('pxBar').style.display='none';
   if(!code)return;
-  // 缓存
   if(_pxLoaded[code]){renderPxList(code,_pxLoaded[code]);return;}
   V('pxLoading').style.display='block';
   fetch('/admin/proxyip.json?country='+code+'&limit=80').then(function(r){return r.json()}).then(function(j){
     V('pxLoading').style.display='none';
-    if(!j.ok||!j.ips){V('pxList').innerHTML='<div class="px-loading">暂无数据</div>';V('pxList').classList.add('show');return;}
-    _pxLoaded[code]=j.ips;
-    renderPxList(code,j.ips);
-  }).catch(function(){
-    V('pxLoading').style.display='none';
-  });
+    if(!j.ok||!j.ips)return;
+    _pxLoaded[code]=j.ips;renderPxList(code,j.ips);
+  }).catch(function(){V('pxLoading').style.display='none';});
 };
 
 function renderPxList(code,ips){
-  _pxData=ips;
-  var html='';
+  _pxData=ips;var html='';
   ips.forEach(function(ip,i){
-    html+='<label class="px-item">'
-      +'<input type="checkbox" value="'+i+'" class="px-cb">'
-      +'<span class="px-ip">'+ip.ip+':'+ip.port+'</span>'
-      +'<span class="px-colo">'+ip.colo+'</span>'
-      +'</label>';
+    html+='<label class="px-item" id="pxr'+i+'"><input type="checkbox" value="'+i+'" class="px-cb"><span class="px-ip">'+ip.ip+':'+ip.port+'</span><span class="px-colo">'+(ip.colo||ip.city||'')+'</span><span class="px-lat" id="pxlat'+i+'">…</span></label>';
   });
-  V('pxList').innerHTML=html;
-  V('pxList').classList.add('show');
-  V('pxBar').style.display='flex';
-  updatePxCount();
-  // click on label toggles checkbox
-  V('pxList').addEventListener('change',function(e){
-    if(e.target.classList.contains('px-cb'))updatePxCount();
+  V('pxList').innerHTML=html;V('pxList').classList.add('show');V('pxBar').style.display='flex';updatePxCount();
+  V('pxList').addEventListener('change',function(e){if(e.target.classList.contains('px-cb'))updatePxCount();});
+  measureAllLatency(ips);
+}
+function measureAllLatency(ips){
+  ips.forEach(function(ip,i){
+    var img=new Image(),start=performance.now(),done=false;
+    var timer=setTimeout(function(){
+      if(!done){done=true;img.src='';showLat(i,-1);}
+    },4000);
+    img.onload=img.onerror=function(){
+      if(done)return;done=true;clearTimeout(timer);
+      showLat(i,Math.round(performance.now()-start));
+    };
+    img.src='https://'+ip.ip+':'+ip.port+'/favicon.ico?_='+Math.random();
   });
 }
-
-function updatePxCount(){
-  var cbs=V('pxList').querySelectorAll('.px-cb:checked');
-  V('pxSelCount').textContent='已选 '+cbs.length+' / '+_pxData.length;
+function showLat(idx,ms){
+  var el=document.getElementById('pxlat'+idx);if(!el)return;
+  if(ms<0){el.textContent='超时';el.style.color='#94a3b8';return;}
+  el.textContent=ms+'ms';
+  el.style.color=ms<150?'#0f9f6e':ms<300?'#d97706':'#dc2626';
 }
+function updatePxCount(){var n=V('pxList').querySelectorAll('.px-cb:checked').length;V('pxSelCount').textContent='已选 '+n+' / '+_pxData.length;}
 
-// 追加选中的 IP 到反代IP输入框
 V('pxAddSel').onclick=function(){
-  var cbs=V('pxList').querySelectorAll('.px-cb:checked');
-  var picked=[];
+  var cbs=V('pxList').querySelectorAll('.px-cb:checked'),picked=[];
   cbs.forEach(function(cb){var d=_pxData[parseInt(cb.value)];if(d)picked.push(d.ip+':'+d.port);});
   if(!picked.length)return;
   var inp=V('proxyip'),cur=inp.value.trim();
   inp.value=(cur?cur+', ':'')+picked.join(', ');
 };
-// 追加全部
 V('pxAddAll').onclick=function(){
   var all=_pxData.map(function(d){return d.ip+':'+d.port;});
   if(!all.length)return;
-  var inp=V('proxyip'),cur=inp.value.trim();
-  inp.value=(cur?cur+', ':'')+all.join(', ');
+  V('proxyip').value=all.join(', ');
 };
-
 loadProxyCountries();
 </script>
 </body></html>
