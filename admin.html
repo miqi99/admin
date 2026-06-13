@@ -86,7 +86,6 @@ h1{font-size:17px;font-weight:700;letter-spacing:-.01em}
 .px-item input{width:15px;height:15px;accent-color:var(--blue);cursor:pointer;flex-shrink:0}
 .px-item .px-ip{font-family:var(--mono);font-size:12px;color:#4338ca;flex:1}
 .px-item .px-colo{font-size:11px;background:#f1f5f9;padding:1px 6px;border-radius:4px;color:#64748b;flex-shrink:0}
-.px-item .px-lat{font-size:12px;font-family:var(--mono);min-width:44px;text-align:right;flex-shrink:0;transition:color .3s}
 .px-loading{text-align:center;padding:20px;color:#94a3b8;font-size:13px}
 .px-bar{display:flex;align-items:center;gap:8px;padding:10px 18px;border-top:1px solid var(--line)}
 </style></head><body>
@@ -327,30 +326,10 @@ V('pxCountry').onchange=function(){
 function renderPxList(code,ips){
   _pxData=ips;var html='';
   ips.forEach(function(ip,i){
-    html+='<label class="px-item" id="pxr'+i+'"><input type="checkbox" value="'+i+'" class="px-cb"><span class="px-ip">'+ip.ip+':'+ip.port+'</span><span class="px-colo">'+(ip.colo||ip.city||'')+'</span><span class="px-lat" id="pxlat'+i+'">…</span></label>';
+    html+='<label class="px-item"><input type="checkbox" value="'+i+'" class="px-cb"><span class="px-ip">'+ip.ip+':'+ip.port+'</span><span class="px-colo">'+(ip.colo||ip.city||'')+'</span></label>';
   });
   V('pxList').innerHTML=html;V('pxList').classList.add('show');V('pxBar').style.display='flex';updatePxCount();
   V('pxList').addEventListener('change',function(e){if(e.target.classList.contains('px-cb'))updatePxCount();});
-  measureAllLatency(ips);
-}
-function measureAllLatency(ips){
-  ips.forEach(function(ip,i){
-    var img=new Image(),start=performance.now(),done=false;
-    var timer=setTimeout(function(){
-      if(!done){done=true;img.src='';showLat(i,-1);}
-    },4000);
-    img.onload=img.onerror=function(){
-      if(done)return;done=true;clearTimeout(timer);
-      showLat(i,Math.round(performance.now()-start));
-    };
-    img.src='https://'+ip.ip+':'+ip.port+'/favicon.ico?_='+Math.random();
-  });
-}
-function showLat(idx,ms){
-  var el=document.getElementById('pxlat'+idx);if(!el)return;
-  if(ms<0){el.textContent='超时';el.style.color='#94a3b8';return;}
-  el.textContent=ms+'ms';
-  el.style.color=ms<150?'#0f9f6e':ms<300?'#d97706':'#dc2626';
 }
 function updatePxCount(){var n=V('pxList').querySelectorAll('.px-cb:checked').length;V('pxSelCount').textContent='已选 '+n+' / '+_pxData.length;}
 
