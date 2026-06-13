@@ -313,18 +313,30 @@ Array.prototype.forEach.call(document.querySelectorAll('.sub-pill'),function(b){
 /* 泛解析+泛证书域名：把 IP 编码进子域名即解析到该 IP，且有合法 HTTPS 证书，
    故浏览器可直接 fetch 测速。测试全在浏览器，Worker 不参与 → 零封号风险。 */
 var PROBE_HOST='.nip.cml'+'iussss.hidns.vip';
-var _pxData=[],_pxLoaded={},_pxResults=[],_pxRun=null;
+var ALLJSON_URL='https://zip.cm.edu.kg/all.json'; // 反代扫描库（浏览器直拉，CORS 全开，不经过 Worker）
+var _pxData=[],_pxLoaded={},_pxResults=[],_pxRun=null,_allJson=null;
 function createOpt(v,t){var o=document.createElement('option');o.value=v;o.textContent=t;return o}
+
+/* 拉取扫描库（整库只拉一次，存内存复用） */
+function loadAllJson(){
+  if(_allJson)return Promise.resolve(_allJson);
+  return fetch(ALLJSON_URL).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){_allJson=d;return d;});
+}
 
 function loadProxyCountries(){
   var sel=V('pxCountry');
   sel.options[0].textContent='加载中…';
-  fetch('/admin/proxyip.json').then(function(r){return r.json()}).then(function(j){
+  loadAllJson().then(function(d){
     while(sel.options.length)sel.remove(0);
-    if(!j.ok||!j.countries){sel.appendChild(createOpt('','加载失败'));return;}
-    V('pxUpdated').textContent=j.total+' IP · '+(j.updated||'').slice(0,10);
+    var cmap=(d.list&&d.list.country)||{};
+    /* 单遍扫出每个国家的中文名/旗帜 */
+    var info={};
+    (d.data||[]).forEach(function(it){var m=it.meta;if(m&&m.country&&!info[m.country])info[m.country]={cn:m.country_cn||m.country,emoji:m.country_emoji||''};});
+    V('pxUpdated').textContent=((d.list&&d.list.ips)||0)+' IP · '+(d.generated_at||'').slice(0,10);
     sel.appendChild(createOpt('','选择国家/地区…'));
-    j.countries.forEach(function(c){sel.appendChild(createOpt(c.code,(c.country_emoji||'')+' '+c.country_cn+' ('+c.count+')'));});
+    Object.keys(cmap).map(function(code){return {code:code,count:cmap[code],cn:(info[code]||{}).cn||code,emoji:(info[code]||{}).emoji||''};})
+      .sort(function(a,b){return b.count-a.count;})
+      .forEach(function(c){sel.appendChild(createOpt(c.code,(c.emoji||'')+' '+c.cn+' ('+c.count+')'));});
   }).catch(function(){sel.options[0].textContent='加载失败';});
 }
 
@@ -367,11 +379,15 @@ V('pxCountry').onchange=function(){
   function go(ips){_pxData=ips;V('pxCtrl').style.display='flex';V('pxProg').textContent=ips.length+' 个待测，点击开始';}
   if(_pxLoaded[code]){go(_pxLoaded[code]);return;}
   V('pxLoading').style.display='block';
-  fetch('/admin/proxyip.json?country='+code+'&limit=500').then(function(r){return r.json()}).then(function(j){
+  loadAllJson().then(function(d){
     V('pxLoading').style.display='none';
-    if(!j.ok||!j.ips){V('pxCtrl').style.display='flex';V('pxProg').textContent='加载失败';return;}
-    _pxLoaded[code]=j.ips;go(j.ips);
-  }).catch(function(){V('pxLoading').style.display='none';});
+    var ips=[];
+    (d.data||[]).forEach(function(it){
+      var m=it.meta;
+      if(m&&m.country===code)ips.push({ip:it.ip,port:(it.port&&it.port[0])||443,colo:(m.colo&&m.colo.iata)||'',city:(m.colo&&m.colo.city)||''});
+    });
+    _pxLoaded[code]=ips;go(ips);
+  }).catch(function(){V('pxLoading').style.display='none';V('pxCtrl').style.display='flex';V('pxProg').textContent='加载失败';});
 };
 
 /* --- 测速编排（并发 + 进度 + 实时渲染） --- */
