@@ -1,0 +1,228 @@
+<!DOCTYPE html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>管理面板</title><style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;overflow:hidden}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC',sans-serif;background:#f8fafc;color:#1e293b;display:flex;flex-direction:column}
+.hdr{display:flex;align-items:center;gap:10px;padding:0 16px;height:48px;background:#fff;border-bottom:1px solid #e2e8f0;flex-shrink:0}
+.logo{width:28px;height:28px;background:linear-gradient(135deg,#6366f1,#818cf8);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;box-shadow:0 2px 8px rgba(99,102,241,.3)}
+h1{font-size:15px;font-weight:700}
+.tag{font-size:11px;padding:2px 8px;border-radius:6px;font-weight:600}
+.ti{background:#ede9fe;color:#6d28d9}.th{background:#f1f5f9;color:#64748b;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sp{flex:1}
+.saved{font-size:12px;color:#15803d;font-weight:600}
+.btn-s{padding:7px 16px;border-radius:8px;background:#6366f1;color:#fff;border:none;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:background .15s}
+.btn-s:hover{background:#4f46e5}
+.ct{flex:1;display:flex;flex-direction:column;padding:12px;gap:10px;overflow:hidden;min-height:0}
+.row1{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;flex-shrink:0}
+.row2{flex:1;display:grid;grid-template-columns:1fr 232px;gap:10px;min-height:0}
+.card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+.ch{font-size:11px;font-weight:700;color:#475569;padding:9px 12px;background:#f8fafc;border-bottom:1px solid #f1f5f9}
+.f{display:flex;align-items:center;padding:0 12px;height:34px;border-bottom:1px solid #f8fafc}
+.f:last-child{border-bottom:none}
+.f label{font-size:11px;color:#64748b;width:62px;flex-shrink:0;font-weight:500}
+.f input,.f select{flex:1;border:none;background:none;font-size:12px;color:#1e293b;outline:none;font-family:inherit;text-align:right;min-width:0}
+.f input::placeholder{color:#cbd5e1;font-size:11px}
+.f select{-webkit-appearance:none;appearance:none;padding-right:14px;cursor:pointer;background:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='8' height='12' viewBox='0 0 8 12'><path d='M1 4l3 3 3-3' stroke='%2394a3b8' stroke-width='1.5' fill='none'/></svg>") no-repeat right center}
+.ck{display:flex;align-items:center;gap:7px;padding:0 12px;height:30px;cursor:pointer}
+.ck input{width:14px;height:14px;accent-color:#6366f1;cursor:pointer}
+.ck span{font-size:11px;color:#475569}
+.tf{display:flex;align-items:center;gap:5px;padding:5px 12px;border-top:1px solid #f1f5f9}
+.tf label{font-size:11px;color:#64748b;flex-shrink:0}
+.th2{flex:1;border:1px solid #e2e8f0;border-radius:6px;padding:4px 7px;font-size:11px;outline:none;font-family:inherit;min-width:0}
+.tp2{width:46px;border:1px solid #e2e8f0;border-radius:6px;padding:4px;font-size:11px;text-align:center;outline:none;font-family:inherit}
+.tb{padding:4px 10px;border-radius:6px;background:#eef2ff;color:#6366f1;border:none;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap}
+.tb:hover{background:#e0e7ff}
+#tr{font-size:11px;padding:0 12px 6px;min-height:14px}
+.ip-s{background:#fff;border:1px solid #e2e8f0;border-radius:12px;display:flex;flex-direction:column;overflow:hidden;min-height:0}
+.sh{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:#f8fafc;border-bottom:1px solid #f1f5f9}
+.sl{font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.6px}
+.ic{font-size:10px;background:#ede9fe;color:#6d28d9;padding:1px 6px;border-radius:8px;font-weight:600}
+.ip-ta{flex:1;border:none;padding:10px;font-family:'SF Mono','Fira Code',Monaco,monospace;font-size:11px;color:#4338ca;background:#fff;resize:none;outline:none;line-height:1.9}
+.ip-ta::placeholder{color:#cbd5e1}
+.ap-s{display:flex;flex-direction:column;gap:7px;min-height:0}
+.ap-r{display:flex;gap:5px}
+.ap-u{flex:1;border:1px solid #e2e8f0;border-radius:7px;padding:5px 8px;font-size:11px;outline:none;font-family:inherit;background:#fff;min-width:0}
+.ap-p{width:38px;border:1px solid #e2e8f0;border-radius:7px;padding:5px 4px;font-size:11px;outline:none;font-family:inherit;background:#fff;text-align:center;flex-shrink:0}
+.ap-b{padding:5px 10px;border-radius:7px;background:#6366f1;color:#fff;border:none;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0}
+.ap-b:hover{background:#4f46e5}.ap-b:disabled{background:#94a3b8;cursor:not-allowed}
+.ap-res{flex:1;border:1px solid #e2e8f0;border-radius:9px;background:#fff;overflow-y:auto;min-height:60px;font-size:11px;font-family:'SF Mono',monospace}
+.ap-ph{display:flex;align-items:center;justify-content:center;height:100%;color:#cbd5e1;font-size:12px}
+.ap-it{padding:5px 10px;border-bottom:1px solid #f8fafc;color:#4338ca;word-break:break-all}
+.ap-st{font-size:11px;color:#64748b;text-align:center}.ap-st.ok{color:#15803d}.ap-st.er{color:#dc2626}
+.ap-saved{display:flex;align-items:center;gap:6px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:7px;padding:5px 8px;font-size:10px;color:#15803d;font-family:'SF Mono',monospace;word-break:break-all}
+.ap-saved span{flex:1}.ap-clr{border:none;background:none;color:#dc2626;font-size:10px;cursor:pointer;flex-shrink:0}
+.ap-acts{display:flex;gap:5px}
+.btn-ap{flex:1;padding:7px;border-radius:7px;background:#6366f1;color:#fff;border:none;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit}
+.btn-ap:hover{background:#4f46e5}.btn-ap:disabled{background:#94a3b8}
+.btn-ap2{background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0}.btn-ap2:hover{background:#dcfce7}
+.subs{border:1px solid #e0e7ff;border-radius:8px;overflow:hidden}
+.subs-h{font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.4px;padding:6px 9px;background:#f8fafc;border-bottom:1px solid #eef2ff}
+.sub-i{display:block;width:100%;text-align:left;padding:7px 9px;font-size:11px;font-weight:600;color:#4338ca;background:#fff;border:none;border-bottom:1px solid #f1f5f9;cursor:pointer;font-family:inherit}
+.sub-i:last-child{border-bottom:none}.sub-i:hover{background:#f5f3ff}.sub-i.copied{color:#15803d;background:#f0fdf4}
+</style></head><body>
+<div class="hdr">
+  <div class="logo">⚡</div><h1>管理面板</h1>
+  <span class="tag ti" id="ispTag">…</span>
+  <span class="tag th" id="hostTag">…</span>
+  <div class="sp"></div>
+  <span class="saved" id="savedMsg"></span>
+  <button class="btn-s" id="saveBtn">保存配置</button>
+</div>
+<div class="ct">
+  <div class="row1">
+    <div class="card">
+      <div class="ch">核心配置</div>
+      <div class="f"><label>UUID</label><input id="uuid" placeholder="必填"></div>
+      <div class="f"><label>域名</label><input id="host" placeholder="your.domain.com"></div>
+    </div>
+    <div class="card">
+      <div class="ch">订阅设置</div>
+      <div class="f"><label>名称</label><input id="subName" placeholder="节点名称"></div>
+      <div class="f"><label>路径</label><input id="wsPath" placeholder="/ws"></div>
+      <div class="f"><label>指纹</label><select id="fingerprint"><option value="chrome">Chrome</option><option value="firefox">Firefox</option><option value="safari">Safari</option><option value="random">随机</option></select></div>
+      <div class="f"><label>生成数量</label><input id="ipCount" type="number" min="1" max="100"></div>
+      <div class="f"><label>转换后端</label><select id="apiSel"><option value="">默认 · CM 负载均衡</option></select></div>
+      <div class="f" id="apiTxtrow" style="display:none"><label></label><input id="apiTxt" placeholder="自定义后端 https://..."></div>
+      <div class="f"><label>规则配置</label><select id="cfgSel"><option value="">默认 · 精简多模式</option></select></div>
+      <div class="f" id="cfgTxtrow" style="display:none"><label></label><input id="cfgTxt" placeholder="自定义规则 ini URL"></div>
+      <label class="ck"><input type="checkbox" id="enable0rtt"><span>启用 0-RTT</span></label>
+      <label class="ck"><input type="checkbox" id="skipCert"><span>跳过证书验证</span></label>
+      <label class="ck"><input type="checkbox" id="randomPort"><span>随机端口</span></label>
+      <label class="ck"><input type="checkbox" id="subEmoji"><span>转换添加 Emoji</span></label>
+    </div>
+    <div class="card">
+      <div class="ch">反代配置</div>
+      <div class="f"><label>反代域名</label><input id="proxyip" placeholder="留空直连"></div>
+      <div class="f"><label>ECH SNI</label><input id="echSni" placeholder="可选"></div>
+      <div class="f"><label>ECH DNS</label><input id="echDns" placeholder="可选"></div>
+      <div class="tf"><label>连接测试</label><input id="th" class="th2" value="cloudflare.com"><span style="color:#d1d5db;font-size:11px">:</span><input id="tp" class="tp2" value="443"><button type="button" class="tb" id="testBtn">测试</button></div>
+      <div id="tr"></div>
+    </div>
+  </div>
+  <div class="row2">
+    <div class="ip-s">
+      <div class="sh"><span class="sl">优选 IP</span><span class="ic" id="ipCountBadge">自动</span></div>
+      <textarea class="ip-ta" id="ipList" placeholder="IP:端口#备注，每行一个&#10;留空则自动生成"></textarea>
+    </div>
+    <div class="ap-s">
+      <div class="sh"><span class="sl">API 获取</span></div>
+      <div class="ap-saved" id="apSaved" style="display:none"></div>
+      <div class="ap-r">
+        <input id="apUrl" class="ap-u" placeholder="优选 API URL（https://...）">
+        <input id="apPort" class="ap-p" value="443">
+        <button type="button" class="ap-b" id="apBtn">获取预览</button>
+      </div>
+      <div class="ap-res" id="apRes"><div class="ap-ph">输入 URL 后点获取预览</div></div>
+      <div class="ap-st" id="apSt"></div>
+      <div class="ap-acts" id="apActs" style="display:none">
+        <button type="button" class="btn-ap btn-ap2" id="apAdd">追加结果</button>
+        <button type="button" class="btn-ap" id="apApi">追加API（实时）</button>
+      </div>
+      <div class="subs">
+        <div class="subs-h">订阅链接（点击复制）</div>
+        <button type="button" class="sub-i" data-q="">自适应订阅</button>
+        <button type="button" class="sub-i" data-q="?base64">Base64 订阅</button>
+        <button type="button" class="sub-i" data-q="?target=clash">Clash 订阅</button>
+        <button type="button" class="sub-i" data-q="?target=singbox">Sing-box 订阅</button>
+        <button type="button" class="sub-i" data-q="?target=plain">节点链接（明文）</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+var _ips=[];
+var V=id=>document.getElementById(id);
+var val=id=>V(id).value.trim();
+var setv=(id,v)=>{V(id).value=v==null?'':v;};
+var setck=(id,v)=>{V(id).checked=!!v;};
+
+// 载入配置
+fetch('/admin/config.json').then(function(r){return r.json()}).then(function(c){
+  ['uuid','host','proxyip','echSni','echDns','subName','wsPath','ipCount'].forEach(function(k){setv(k,c[k]);});
+  setv('fingerprint',c.fingerprint||'chrome');
+  setv('ipList',c.customIPs);
+  setv('apiTxt',c.subApi);setv('cfgTxt',c.subConfig);
+  ['enable0rtt','skipCert','randomPort','subEmoji'].forEach(function(k){setck(k,c[k]);});
+  V('ispTag').textContent=c.ispName||'通用';
+  V('hostTag').textContent=c.host||'待配置';
+  var n=(c.customIPs||'').split('\n').filter(Boolean).length;
+  V('ipCountBadge').textContent=n?n:'自动';
+  if(c.customApiUrl)showSaved(c.customApiUrl);
+  loadSublist();
+});
+function showSaved(url){var s=V('apSaved');s.style.display='flex';s.innerHTML='<span>实时API：'+url+'</span><button type="button" class="ap-clr" id="apClr">清除</button>';V('apClr').onclick=clearApi;}
+
+// 保存
+V('saveBtn').onclick=function(){
+  var body={uuid:val('uuid'),host:val('host'),proxyip:val('proxyip'),customIPs:val('ipList'),
+    subName:val('subName'),wsPath:val('wsPath'),fingerprint:val('fingerprint'),ipCount:val('ipCount'),
+    echSni:val('echSni'),echDns:val('echDns'),subApi:val('apiTxt'),subConfig:val('cfgTxt'),
+    enable0rtt:V('enable0rtt').checked,skipCert:V('skipCert').checked,randomPort:V('randomPort').checked,subEmoji:V('subEmoji').checked};
+  var b=V('saveBtn');b.disabled=true;b.textContent='保存中…';
+  fetch('/admin/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){return r.json()}).then(function(j){
+    V('savedMsg').textContent=j.ok?'✓ 已保存':'保存失败';
+    V('hostTag').textContent=body.host||'待配置';
+    setTimeout(function(){V('savedMsg').textContent='';},2500);
+  }).catch(function(){V('savedMsg').textContent='保存失败';}).finally(function(){b.disabled=false;b.textContent='保存配置';});
+};
+
+// 连接测试
+V('testBtn').onclick=function(){
+  var h=val('th'),p=val('tp'),r=V('tr');r.style.color='#94a3b8';r.textContent='测试中…';
+  fetch('/admin/test?host='+encodeURIComponent(h)+'&port='+p).then(function(res){return res.text().then(function(x){r.style.color=res.ok?'#15803d':'#dc2626';r.textContent=(res.ok?'✓ ':'✗ ')+x;});}).catch(function(e){r.style.color='#dc2626';r.textContent='✗ '+e.message;});
+};
+
+// 优选API 预览 / 追加
+function ph(el,t){el.innerHTML='';var d=document.createElement('div');d.className='ap-ph';d.textContent=t;el.appendChild(d);}
+V('apBtn').onclick=function(){
+  var url=val('apUrl'),port=V('apPort').value||'443',btn=V('apBtn'),res=V('apRes'),st=V('apSt'),acts=V('apActs');
+  if(!url){st.className='ap-st er';st.textContent='请输入 URL';return;}
+  btn.disabled=true;btn.textContent='获取中…';ph(res,'正在获取…');st.textContent='';acts.style.display='none';_ips=[];
+  fetch('/admin/getapi?url='+encodeURIComponent(url)+'&port='+port).then(function(r){return r.json()}).then(function(j){
+    if(j.ok&&j.data.length){_ips=j.data;res.innerHTML='';_ips.forEach(function(ip){var d=document.createElement('div');d.className='ap-it';d.textContent=ip;res.appendChild(d);});st.className='ap-st ok';st.textContent='✓ 获取到 '+_ips.length+' 条';acts.style.display='flex';}
+    else{ph(res,'无数据');st.className='ap-st er';st.textContent=j.msg||'返回为空';}
+  }).catch(function(e){ph(res,'请求失败');st.className='ap-st er';st.textContent='✗ '+e.message;}).finally(function(){btn.disabled=false;btn.textContent='获取预览';});
+};
+V('apAdd').onclick=function(){
+  if(!_ips.length)return;var ta=V('ipList');ta.value=(ta.value.trim()?ta.value.trim()+'\n':'')+_ips.join('\n');
+  var b=V('apAdd');b.textContent='✓ 已追加';setTimeout(function(){b.textContent='追加结果';},2000);
+};
+V('apApi').onclick=function(){
+  var url=val('apUrl'),port=V('apPort').value||'443';if(!url){alert('请先输入 API URL');return;}
+  var b=V('apApi');b.disabled=true;b.textContent='保存中…';
+  fetch('/admin/setapiurl',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:url,port:port})}).then(function(r){return r.json()}).then(function(j){
+    if(j.ok){b.textContent='✓ 已保存';showSaved(url);}else b.textContent='保存失败';
+    setTimeout(function(){b.disabled=false;b.textContent='追加API（实时）';},2000);
+  }).catch(function(){b.textContent='保存失败';setTimeout(function(){b.disabled=false;b.textContent='追加API（实时）';},2000);});
+};
+function clearApi(){if(!confirm('确认清除已保存的实时API地址？'))return;fetch('/admin/clearapiurl',{method:'POST'}).then(function(){V('apSaved').style.display='none';V('apSaved').innerHTML='';});}
+
+// 订阅转换 下拉
+function fillSel(sel,data,cur){
+  while(sel.options.length>1)sel.remove(1);
+  function add(p,l,v){var o=document.createElement('option');o.value=v;o.textContent=l;p.appendChild(o);}
+  (data||[]).forEach(function(it){if(it&&it.options){var g=document.createElement('optgroup');g.label=it.label;it.options.forEach(function(o){add(g,o.label,o.value);});sel.appendChild(g);}else if(it)add(sel,it.label,it.value);});
+  var c=document.createElement('option');c.value='__c';c.textContent='自定义…';sel.appendChild(c);
+  if(cur){sel.value=cur;if(sel.value!==cur)sel.value='__c';}else sel.value='';
+}
+function bindSel(selId,txtId){var s=V(selId),t=V(txtId),row=V(txtId+'row');s.onchange=function(){if(s.value==='__c'){row.style.display='';t.value='';t.focus();}else{t.value=s.value;row.style.display='none';}};}
+bindSel('apiSel','apiTxt');bindSel('cfgSel','cfgTxt');
+function loadSublist(){
+  fetch('/admin/sublist').then(function(r){return r.json()}).then(function(j){
+    fillSel(V('apiSel'),j.api,val('apiTxt'));fillSel(V('cfgSel'),j.config,val('cfgTxt'));
+    V('apiTxtrow').style.display=V('apiSel').value==='__c'?'':'none';
+    V('cfgTxtrow').style.display=V('cfgSel').value==='__c'?'':'none';
+  }).catch(function(){});
+}
+
+// 订阅链接 点击复制
+Array.prototype.forEach.call(document.querySelectorAll('.sub-i'),function(b){
+  b.onclick=function(){
+    var url=location.origin+'/sub'+b.getAttribute('data-q'),old=b.textContent;
+    function ok(){b.classList.add('copied');b.textContent='✓ 已复制：'+url;setTimeout(function(){b.classList.remove('copied');b.textContent=old;},1800);}
+    if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(ok).catch(function(){window.prompt('复制订阅链接：',url);});
+    else window.prompt('复制订阅链接：',url);
+  };
+});
+</script>
+</body></html>
