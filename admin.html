@@ -88,6 +88,13 @@ h1{font-size:17px;font-weight:700;letter-spacing:-.01em}
 .px-item .px-colo{font-size:11px;background:#f1f5f9;padding:1px 6px;border-radius:4px;color:#64748b;flex-shrink:0}
 .px-loading{text-align:center;padding:20px;color:#94a3b8;font-size:13px}
 .px-bar{display:flex;align-items:center;gap:8px;padding:10px 18px;border-top:1px solid var(--line)}
+.px-ctrl{display:flex;align-items:center;gap:10px;padding:12px 18px;border-top:1px solid var(--line);flex-wrap:wrap}
+.px-prog{font-size:12px;color:#64748b}
+.px-item .px-ms{font-family:var(--mono);font-size:12px;font-weight:700;flex-shrink:0;width:58px}
+.px-ms.fast{color:#0f9f6e}.px-ms.mid{color:#d97706}.px-ms.slow{color:#dc2626}
+.px-item .px-fam{font-size:11px;padding:1px 6px;border-radius:4px;flex-shrink:0;font-weight:600}
+.px-fam.v4{background:#dcfce7;color:#15803d}.px-fam.v6{background:#dbeafe;color:#1d4ed8}
+.px-hint{font-size:12px;color:#94a3b8;padding:8px 18px;border-top:1px solid var(--line);line-height:1.6}
 </style></head><body>
 <div class="hdr"><div class="hdr-in">
   <div class="logo">⚡</div><h1>管理面板</h1>
@@ -163,15 +170,20 @@ h1{font-size:17px;font-weight:700;letter-spacing:-.01em}
     </div>
   </div>
 
-  <!-- 反代IP 扫描库选择 -->
+  <!-- 反代IP 扫描库 + 浏览器测速 -->
   <div class="card">
     <div class="ip-head">
-      <span class="t">🔄 从扫描库选反代IP</span>
+      <span class="t">🌍 获取更多 反代IP（浏览器测速）</span>
       <span class="badge" id="pxUpdated">…</span>
     </div>
     <div class="field">
-      <label>国家/地区</label>
-      <select id="pxCountry"><option value="">选择国家…</option></select>
+      <label>目标地区</label>
+      <select id="pxCountry"><option value="">选择国家/地区…</option></select>
+    </div>
+    <div class="px-ctrl" id="pxCtrl" style="display:none">
+      <button type="button" class="qa-b" id="pxTest">⚡ 开始优选延迟</button>
+      <button type="button" class="qa-b" id="pxStop" style="background:#64748b;display:none">■ 停止</button>
+      <span class="px-prog" id="pxProg"></span>
     </div>
     <div class="px-loading" id="pxLoading" style="display:none">加载中…</div>
     <div class="px-list" id="pxList"></div>
@@ -179,8 +191,9 @@ h1{font-size:17px;font-weight:700;letter-spacing:-.01em}
       <span style="font-size:12px;color:#94a3b8" id="pxSelCount">已选 0</span>
       <div style="flex:1"></div>
       <button type="button" class="qa-b" id="pxAddSel">追加选中</button>
-      <button type="button" class="qa-b" id="pxAddAll" style="background:#64748b">追加全部</button>
+      <button type="button" class="qa-b" id="pxAddAll" style="background:#64748b">追加全部存活</button>
     </div>
+    <div class="px-hint">延迟从<b>你本机浏览器</b>直连测得（合法 HTTPS 探测），反映你的真实网络。<b>测试在浏览器进行，不经过 Worker</b>，零封号风险。</div>
   </div>
 
 </div>
@@ -296,54 +309,129 @@ Array.prototype.forEach.call(document.querySelectorAll('.sub-pill'),function(b){
   };
 });
 
-/* === 反代IP 扫描库选择 === */
-var _pxData=[],_pxLoaded={};
+/* === 反代IP 扫描库 + 浏览器测速 === */
+/* 泛解析+泛证书域名：把 IP 编码进子域名即解析到该 IP，且有合法 HTTPS 证书，
+   故浏览器可直接 fetch 测速。测试全在浏览器，Worker 不参与 → 零封号风险。 */
+var PROBE_HOST='.nip.cml'+'iussss.hidns.vip';
+var _pxData=[],_pxLoaded={},_pxResults=[],_pxRun=null;
+function createOpt(v,t){var o=document.createElement('option');o.value=v;o.textContent=t;return o}
+
 function loadProxyCountries(){
   var sel=V('pxCountry');
   sel.options[0].textContent='加载中…';
   fetch('/admin/proxyip.json').then(function(r){return r.json()}).then(function(j){
     while(sel.options.length)sel.remove(0);
     if(!j.ok||!j.countries){sel.appendChild(createOpt('','加载失败'));return;}
-    V('pxUpdated').textContent=j.total+' IP · '+j.updated;
+    V('pxUpdated').textContent=j.total+' IP · '+(j.updated||'').slice(0,10);
     sel.appendChild(createOpt('','选择国家/地区…'));
-    j.countries.forEach(function(c){sel.appendChild(createOpt(c.code,(c.country_emoji||'')+' '+c.country_cn+' ('+c.count+' IP)'));});
+    j.countries.forEach(function(c){sel.appendChild(createOpt(c.code,(c.country_emoji||'')+' '+c.country_cn+' ('+c.count+')'));});
   }).catch(function(){sel.options[0].textContent='加载失败';});
 }
-function createOpt(v,t){var o=document.createElement('option');o.value=v;o.textContent=t;return o}
+
+/* --- 单个 IP 浏览器测速 --- */
+function ipv4HexLabel(ip){return ip.split('.').map(function(p){return (Number(p)&255).toString(16).padStart(2,'0')}).join('').toUpperCase();}
+function probeUrl(ip,port){
+  var label=ip.indexOf(':')>=0?ip.toLowerCase().replace(/:/g,'-'):ipv4HexLabel(ip);
+  return 'https://'+label+PROBE_HOST+':'+port+'/ip.json?_t='+Date.now();
+}
+function fetchTO(url,method,ms,run){
+  var ctrl=new AbortController();var t=setTimeout(function(){ctrl.abort();},ms);
+  if(run)run.ctrls.push(ctrl);
+  return fetch(url,{method:method,cache:'no-store',signal:ctrl.signal}).finally(function(){clearTimeout(t);});
+}
+function testOne(ip,port,timeout,run){
+  var url=probeUrl(ip,port);
+  function opt(attempt){
+    return fetchTO(url,'OPTIONS',timeout*2,run).then(function(r){
+      if(r.ok)return true;if(attempt<2)return opt(attempt+1);throw new Error('opt '+r.status);
+    },function(e){if(run&&run.stopped)throw e;if(attempt<2)return opt(attempt+1);throw e;});
+  }
+  return opt(0).then(function(){
+    var t0=performance.now();
+    return fetchTO(url,'GET',timeout,run).then(function(r){
+      if(!r.ok)throw new Error('get '+r.status);
+      return r.json().then(function(data){
+        var ms=Math.max(1,Math.round(performance.now()-t0));
+        if(ms>timeout)throw new Error('slow');
+        return {ip:ip,port:port,ms:ms,ipType:data.ipType||'',colo:data.colo||'',city:data.city||'',country:data.country||''};
+      });
+    });
+  });
+}
 
 V('pxCountry').onchange=function(){
-  var code=this.value;V('pxList').classList.remove('show');V('pxBar').style.display='none';
+  var code=this.value;
+  stopPxTest();_pxResults=[];
+  V('pxList').classList.remove('show');V('pxBar').style.display='none';V('pxCtrl').style.display='none';
   if(!code)return;
-  if(_pxLoaded[code]){renderPxList(code,_pxLoaded[code]);return;}
+  function go(ips){_pxData=ips;V('pxCtrl').style.display='flex';V('pxProg').textContent=ips.length+' 个待测，点击开始';}
+  if(_pxLoaded[code]){go(_pxLoaded[code]);return;}
   V('pxLoading').style.display='block';
-  fetch('/admin/proxyip.json?country='+code+'&limit=80').then(function(r){return r.json()}).then(function(j){
+  fetch('/admin/proxyip.json?country='+code+'&limit=500').then(function(r){return r.json()}).then(function(j){
     V('pxLoading').style.display='none';
-    if(!j.ok||!j.ips)return;
-    _pxLoaded[code]=j.ips;renderPxList(code,j.ips);
+    if(!j.ok||!j.ips){V('pxCtrl').style.display='flex';V('pxProg').textContent='加载失败';return;}
+    _pxLoaded[code]=j.ips;go(j.ips);
   }).catch(function(){V('pxLoading').style.display='none';});
 };
 
-function renderPxList(code,ips){
-  _pxData=ips;var html='';
-  ips.forEach(function(ip,i){
-    html+='<label class="px-item"><input type="checkbox" value="'+i+'" class="px-cb"><span class="px-ip">'+ip.ip+':'+ip.port+'</span><span class="px-colo">'+(ip.colo||ip.city||'')+'</span></label>';
-  });
-  V('pxList').innerHTML=html;V('pxList').classList.add('show');V('pxBar').style.display='flex';updatePxCount();
-  V('pxList').addEventListener('change',function(e){if(e.target.classList.contains('px-cb'))updatePxCount();});
+/* --- 测速编排（并发 + 进度 + 实时渲染） --- */
+V('pxTest').onclick=function(){startPxTest();};
+V('pxStop').onclick=function(){stopPxTest();};
+function startPxTest(){
+  if(!_pxData.length)return;
+  stopPxTest();
+  var run={stopped:false,ctrls:[]};_pxRun=run;_pxResults=[];
+  V('pxList').innerHTML='';V('pxList').classList.add('show');V('pxBar').style.display='flex';
+  V('pxTest').style.display='none';V('pxStop').style.display='';
+  var total=_pxData.length,done=0,alive=0,idx=0,CONC=10,TIMEOUT=2500;
+  function upd(){V('pxProg').textContent='测试 '+done+'/'+total+' · 存活 '+alive;}
+  upd();updatePxCount();
+  function next(){
+    if(run.stopped||idx>=total)return;
+    var item=_pxData[idx++];
+    testOne(item.ip,item.port,TIMEOUT,run).then(function(res){
+      if(run.stopped)return;alive++;_pxResults.push(res);renderPxResults();
+    }).catch(function(){}).finally(function(){
+      if(run.stopped)return;done++;upd();
+      if(done>=total){finishPxTest();}else next();
+    });
+  }
+  for(var i=0;i<Math.min(CONC,total);i++)next();
 }
-function updatePxCount(){var n=V('pxList').querySelectorAll('.px-cb:checked').length;V('pxSelCount').textContent='已选 '+n+' / '+_pxData.length;}
+function stopPxTest(){
+  if(_pxRun){_pxRun.stopped=true;_pxRun.ctrls.forEach(function(c){try{c.abort();}catch(e){}});_pxRun=null;}
+  V('pxTest').style.display='';V('pxStop').style.display='none';
+}
+function finishPxTest(){_pxRun=null;V('pxTest').style.display='';V('pxStop').style.display='none';V('pxProg').textContent+=' · 完成';}
+
+function renderPxResults(){
+  _pxResults.sort(function(a,b){return a.ms-b.ms;});
+  var html='';
+  _pxResults.forEach(function(r,i){
+    var cls=r.ms<80?'fast':(r.ms<200?'mid':'slow');
+    var fam=r.ipType==='ipv6'?'<span class="px-fam v6">v6</span>':(r.ipType==='ipv4'?'<span class="px-fam v4">v4</span>':'');
+    html+='<label class="px-item"><input type="checkbox" value="'+i+'" class="px-cb">'
+      +'<span class="px-ms '+cls+'">'+r.ms+'ms</span>'
+      +'<span class="px-ip">'+r.ip+':'+r.port+'</span>'+fam
+      +'<span class="px-colo">'+(r.colo||r.city||'')+'</span></label>';
+  });
+  V('pxList').innerHTML=html;updatePxCount();
+}
+function updatePxCount(){var n=V('pxList').querySelectorAll('.px-cb:checked').length;V('pxSelCount').textContent='已选 '+n+' / 存活 '+_pxResults.length;}
+V('pxList').addEventListener('change',function(e){if(e.target.classList&&e.target.classList.contains('px-cb'))updatePxCount();});
 
 V('pxAddSel').onclick=function(){
   var cbs=V('pxList').querySelectorAll('.px-cb:checked'),picked=[];
-  cbs.forEach(function(cb){var d=_pxData[parseInt(cb.value)];if(d)picked.push(d.ip+':'+d.port);});
+  cbs.forEach(function(cb){var d=_pxResults[parseInt(cb.value)];if(d)picked.push(d.ip+':'+d.port);});
   if(!picked.length)return;
   var inp=V('proxyip'),cur=inp.value.trim();
   inp.value=(cur?cur+', ':'')+picked.join(', ');
 };
 V('pxAddAll').onclick=function(){
-  var all=_pxData.map(function(d){return d.ip+':'+d.port;});
+  var all=_pxResults.map(function(d){return d.ip+':'+d.port;});
   if(!all.length)return;
-  V('proxyip').value=all.join(', ');
+  var inp=V('proxyip'),cur=inp.value.trim();
+  inp.value=(cur?cur+', ':'')+all.join(', ');
 };
 loadProxyCountries();
 </script>
