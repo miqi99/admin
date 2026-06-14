@@ -286,7 +286,6 @@ a{color:inherit;text-decoration:none}
     <div class="card-h"><span class="ico">🔑</span>核心配置</div>
     <div class="field"><label>UUID</label><input id="uuid" placeholder="必填"></div>
     <div class="field"><label>域名</label><input id="host" placeholder="your.domain.com"></div>
-    <div class="field"><label>反代IP</label><input id="proxyip" placeholder="域名 或 IP:端口，多个逗号分隔"></div>
     <div class="field"><label>ECH SNI</label><input id="echSni" placeholder="可选"></div>
     <div class="field"><label>ECH DNS</label><input id="echDns" placeholder="可选"></div>
   </div>
@@ -317,6 +316,7 @@ a{color:inherit;text-decoration:none}
       <span class="badge" id="pxUpdated">…</span>
       <button type="button" class="qa-b" id="pxRefresh" title="重新拉取 all.json">↻ 刷新</button>
     </div>
+    <div class="field"><label>反代IP</label><input id="proxyip" placeholder="域名 或 IP:端口，多个逗号分隔（测速结果追加到这里）"></div>
     <div class="field">
       <label>目标地区</label>
       <select id="pxCountry"><option value="">选择国家/地区…</option></select>
