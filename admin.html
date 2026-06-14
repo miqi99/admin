@@ -162,6 +162,15 @@ a{color:inherit;text-decoration:none}
 .px-hint{font-size:13px;color:var(--muted);padding:14px var(--pad-x);border-top:1px solid var(--line);line-height:1.75}
 .px-hint b{color:var(--ink-2)}
 
+/* ===== toggle switch ===== */
+.toggle-sw{display:flex;align-items:center;gap:8px;cursor:pointer;flex-shrink:0;user-select:none}
+.toggle-sw input{display:none}
+.toggle-sw .sw{width:36px;height:20px;background:#dde1ed;border-radius:999px;position:relative;transition:background .2s;flex-shrink:0}
+.toggle-sw .sw:after{content:'';position:absolute;left:2px;top:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:transform .2s}
+.toggle-sw input:checked+.sw{background:var(--purple)}
+.toggle-sw input:checked+.sw:after{transform:translateX(16px)}
+.toggle-sw .sw-label{font-size:13px;color:var(--muted);font-weight:500}
+
 /* ===== responsive ===== */
 /* 平板 / 小笔记本：略收内边距 */
 @media(max-width:980px){
@@ -255,6 +264,11 @@ a{color:inherit;text-decoration:none}
     <div class="ip-head">
       <span class="t">优选列表</span>
       <span class="badge" id="ipCountBadge">自动</span>
+      <label class="toggle-sw" title="开启后订阅同时追加随机生成的优选 IP（与手动 IP 叠加）">
+        <input type="checkbox" id="autoFill">
+        <span class="sw"></span>
+        <span class="sw-label">随机补全</span>
+      </label>
     </div>
     <textarea class="ip-ta" id="ipList" placeholder="每行一个条目，支持以下格式：&#10;&#10;IP:端口#备注 — 静态优选 IP&#10;api:URL:端口 — 实时 API，订阅时自动拉取&#10;&#10;不填端口时 默认使用443&#10;留空则自动生成优选 IP"></textarea>
     <div class="ip-hint">
@@ -359,7 +373,7 @@ fetch('/admin/config.json').then(function(r){return r.json()}).then(function(c){
   setv('fingerprint',c.fingerprint||'chrome');
   setv('ipList',c.customIPs);
   setv('apiTxt',c.subApi);setv('cfgTxt',c.subConfig);
-  ['enable0rtt','skipCert','randomPort','subEmoji'].forEach(function(k){setck(k,c[k]);});
+  ['enable0rtt','skipCert','randomPort','subEmoji','autoFill'].forEach(function(k){setck(k,c[k]);});
   V('ispTag').textContent=c.ispName||'通用';
   V('hostTag').textContent=c.host||'待配置';
   updateBadge(c.customIPs||'');
@@ -383,7 +397,7 @@ V('saveBtn').onclick=function(){
   var body={uuid:val('uuid'),host:val('host'),proxyip:val('proxyip'),customIPs:val('ipList'),
     subName:val('subName'),wsPath:val('wsPath'),fingerprint:val('fingerprint'),ipCount:val('ipCount'),
     echSni:val('echSni'),echDns:val('echDns'),subApi:val('apiTxt'),subConfig:val('cfgTxt'),
-    enable0rtt:V('enable0rtt').checked,skipCert:V('skipCert').checked,randomPort:V('randomPort').checked,subEmoji:V('subEmoji').checked};
+    enable0rtt:V('enable0rtt').checked,skipCert:V('skipCert').checked,randomPort:V('randomPort').checked,subEmoji:V('subEmoji').checked,autoFill:V('autoFill').checked};
   var b=V('saveBtn');b.disabled=true;b.textContent='保存中…';
   fetch('/admin/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){return r.json()}).then(function(j){
     V('savedMsg').textContent=j.ok?'✓ 已保存':'保存失败';
