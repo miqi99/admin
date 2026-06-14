@@ -1,545 +1,747 @@
-// "STORE"
-
-let _sockMod = null;
-
-// ==================================================
-// Constants
-// ==================================================
-const EARLY_MAX = 8 * 1024;
-const PKT_VER = 0, CMD_TCP = 1, CMD_UDP = 2, AT_IP4 = 1, AT_DOM = 2, AT_IP6 = 3;
-const ISP_MAP = {
-  '4134':'ct','4809':'ct','4811':'ct','4812':'ct','4815':'ct',
-  '4837':'cu','4814':'cu','9929':'cu','17623':'cu','17816':'cu',
-  '9808':'cmcc','24400':'cmcc','56040':'cmcc','56041':'cmcc','56044':'cmcc',
-};
-const ISP_LABEL = { cmcc:'移动优选', cu:'联通优选', ct:'电信优选', cf:'通用优选' };
-const CF_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
-const CF_HTTP_PORTS = ['80','8080','8880','2052','2082','2086','2095']; // 非 TLS 端口
-const PROTO = 'v' + 'le' + 'ss';
-const FALLBACK_CIDR = ['104.16.0.0/13','104.24.0.0/14','141.101.64.0/18',
-  '162.158.0.0/15','172.64.0.0/13','173.245.48.0/20','188.114.96.0/20',
-  '190.93.240.0/20','197.234.240.0/22','198.41.128.0/17'];
-// Cloudflare 官方 IPv4 段（用于判断目标是否在 CF 上 → 需走 proxyip）
-const CF_IP_RANGES = ['173.245.48.0/20','103.21.244.0/22','103.22.200.0/22',
-  '103.31.4.0/22','141.101.64.0/18','108.162.192.0/18','190.93.240.0/20',
-  '188.114.96.0/20','197.234.240.0/22','198.41.128.0/17','162.158.0.0/15',
-  '104.16.0.0/13','104.24.0.0/14','172.64.0.0/13','131.0.72.0/22'];
-
-let _cidrCache = null;
-const td = new TextDecoder(), te = new TextEncoder();
-
-// ==================================================
-// Default config (KV)
-// ==================================================
-const DEFAULT_CONFIG = {
-  uuid: '', host: '', proxyip: '', customIPs: '',
-  subName: '我的J点', wsPath: '/ws', fingerprint: 'chrome', security: 'tls',
-  enable0rtt: true, echSni: '', echDns: '', skipCert: false,
-  ipCount: '16', randomPort: false, autoFill: false,
-  subApi: '', subConfig: '', subEmoji: false, // 外部订阅转换后端 + 规则配置（留空=用下方默认）
-};
-// 默认转换后端与规则配置
-const DEF_SUBAPI = 'https://subapi.cml' + 'iussss.net';
-const DEF_SUBCONFIG = 'https://raw.githubusercontent.com/cm' + 'liu/ACL' + '4SSR/refs/heads/main/Cl' + 'ash/config/ACL' + '4SSR_Online_Mini_MultiMode_CF.ini';
-// 下拉列表数据源
-const SUBAPI_LIST_URL = 'https://raw.githubusercontent.com/cm' + 'liu/cm' + 'liu/main/SUBAPI.json';
-const SUBCONFIG_LIST_URL = 'https://raw.githubusercontent.com/cm' + 'liu/cm' + 'liu/main/SUBCONFIG.json';
-
-const NGINX_PAGE = `<!DOCTYPE html>
-<html>
-<head>
-<title>Welcome to nginx!</title>
+<!DOCTYPE html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>管理面板</title>
 <style>
-html { color-scheme: light dark; }
-body { width: 35em; margin: 0 auto;
-font-family: Tahoma, Verdana, Arial, sans-serif; }
-</style>
-</head>
-<body>
-<h1>Welcome to nginx!</h1>
-<p>If you see this page, the nginx web server is successfully installed and
-working. Further configuration is required.</p>
-
-<p>For online documentation and support please refer to
-<a href="http://nginx.org/">nginx.org</a>.<br/>
-Commercial support is available at
-<a href="http://nginx.com/">nginx.com</a>.</p>
-
-<p><em>Thank you for using nginx.</em></p>
-</body>
-</html>`;
-
-// ==================================================
-// KV helpers
-// ==================================================
-async function loadCfg(env) {
-  try { const r = await env.STORE.get('config'); if (r) return { ...DEFAULT_CONFIG, ...JSON.parse(r) }; } catch (_) {}
-  return { ...DEFAULT_CONFIG };
+:root{
+  --bg:#fbfcff;--panel:#ffffff;--soft:#f5f7fc;
+  --border:#e6eaf4;--line:#eef1f8;
+  --ink:#1b2030;--ink-2:#39405a;--muted:#6c7389;--muted-2:#9aa0b4;
+  --blue:#3b82f6;--blue-d:#2563eb;--purple:#8b5cf6;--purple-d:#7c3aed;--indigo:#6d5cf5;
+  --grad:linear-gradient(120deg,#4f7cff 0%,#7c5cff 52%,#b54df5 100%);
+  --green:#0f9f6e;--red:#dc2626;--amber:#d97706;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+  /* spacing system — 统一边距 */
+  --gap:22px;      /* 卡片之间 */
+  --pad-x:26px;    /* 卡片左右内边距（所有行统一） */
+  --pad-y:18px;    /* 卡片行上下内边距 */
+  --radius:18px;
+  --shadow:0 10px 34px rgba(99,102,241,.1),0 2px 6px rgba(16,24,40,.04);
 }
-async function saveCfg(env, cfg) { await env.STORE.put('config', JSON.stringify(cfg)); }
-
-// ==================================================
-// Bytes / Base64
-// ==================================================
-function mergeBuf(a,b){const r=new Uint8Array(a.byteLength+b.byteLength);r.set(a,0);r.set(b,a.byteLength);return r}
-function asBytes(d){if(d instanceof Uint8Array)return d;if(d instanceof ArrayBuffer)return new Uint8Array(d);if(ArrayBuffer.isView(d))return new Uint8Array(d.buffer,d.byteOffset,d.byteLength);if(typeof d==='string')return te.encode(d);return new Uint8Array(d)}
-function h2b(hex){const b=new Uint8Array(hex.length/2);for(let i=0;i<b.length;i++)b[i]=parseInt(hex.substring(i*2,i*2+2),16);return b}
-function b64e(input){const b=typeof input==='string'?te.encode(input):input;let s='';for(let i=0;i<b.length;i++)s+=String.fromCharCode(b[i]);return btoa(s)}
-function b64d(str){const s=atob(str);const b=new Uint8Array(s.length);for(let i=0;i<s.length;i++)b[i]=s.charCodeAt(i);return b}
-function b64ud(str){let n=str.replace(/-/g,'+').replace(/_/g,'/');const p=n.length%4;if(p)n+='='.repeat(4-p);return b64d(n)}
-
-// ==================================================
-// Packet parser
-// ==================================================
-function parsePacket(bytes,uid){
-  if(bytes.byteLength<18)return null;if(bytes[0]!==PKT_VER)return null;
-  if(!uidMatch(bytes,1,uid))return null;
-  const opt=bytes[17],ci=18+opt;if(bytes.byteLength<ci+1)return null;
-  const cmd=bytes[ci];if(cmd!==CMD_TCP&&cmd!==CMD_UDP)return null;
-  const pi=ci+1;if(bytes.byteLength<pi+3)return null;
-  const port=(bytes[pi]<<8)|bytes[pi+1],at=bytes[pi+2],ai=pi+3;
-  let host='',he=-1;
-  if(at===AT_IP4){if(bytes.byteLength<ai+4)return null;host=`${bytes[ai]}.${bytes[ai+1]}.${bytes[ai+2]}.${bytes[ai+3]}`;he=ai+4}
-  else if(at===AT_DOM){if(bytes.byteLength<ai+1)return null;const dl=bytes[ai];if(bytes.byteLength<ai+1+dl)return null;host=td.decode(bytes.subarray(ai+1,ai+1+dl));he=ai+1+dl}
-  else if(at===AT_IP6){if(bytes.byteLength<ai+16)return null;const parts=[];for(let i=0;i<8;i++){const base=ai+i*2;parts.push(((bytes[base]<<8)|bytes[base+1]).toString(16))}host=parts.join(':');he=ai+16}
-  else return null;
-  if(!host)return null;
-  return{ver:bytes[0],host,port,udp:cmd===CMD_UDP,raw:bytes.subarray(he),rh:new Uint8Array([bytes[0],0])};
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","Helvetica Neue","PingFang SC","Microsoft YaHei",sans-serif;
+  color:var(--ink);font-size:15.5px;line-height:1.6;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;min-height:100vh;
+  background:
+    radial-gradient(900px 480px at 100% -6%,rgba(168,85,247,.1),transparent 55%),
+    radial-gradient(820px 440px at -4% -4%,rgba(59,130,246,.09),transparent 50%),
+    var(--bg);
+  background-attachment:fixed;
 }
-function uidMatch(bytes,off,uid){const hex=uid.replace(/-/g,''),ub=h2b(hex);if(off+ub.length>bytes.byteLength)return false;for(let i=0;i<ub.length;i++){if(bytes[off+i]!==ub[i])return false}return true}
+::-webkit-scrollbar{width:11px;height:11px}
+::-webkit-scrollbar-thumb{background:rgba(124,92,255,.22);border-radius:999px;border:3px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-thumb:hover{background:rgba(124,92,255,.36);background-clip:content-box}
+a{color:inherit;text-decoration:none}
 
-// ==================================================
-// ISP detection & CIDR
-// ==================================================
-function detectISP(request){
-  const asn=String(request.cf?.asn||''),org=String(request.cf?.asOrganization||'').toLowerCase();
-  if(/mobile|cmnet|chinamobile|cmi/i.test(org))return'cmcc';
-  if(/unicom|china169|chinaunicom|cncgroup|cucc|netcom/i.test(org))return'cu';
-  if(/telecom|chinanet|chinatelecom|cn2/i.test(org))return'ct';
-  return ISP_MAP[asn]||'cf';
-}
-function parseIpList(text,defaultPort){
-  const clean=text.trim().replace(/\s/g,'');
-  if(clean.length>0&&clean.length%4===0&&/^[A-Za-z0-9+/]+=*$/.test(clean)){try{text=atob(clean)}catch(_){}}
-  return text.split(/\r?\n/).map(l=>l.trim()).filter(l=>l&&!l.startsWith('#')).map(line=>{
-    const hi=line.indexOf('#'),addr=(hi>-1?line.slice(0,hi):line).trim(),rm=hi>-1?line.slice(hi+1):'';
-    const lc=addr.lastIndexOf(':');
-    if(lc>-1&&/^\d+$/.test(addr.slice(lc+1)))return{addr:addr.slice(0,lc),port:addr.slice(lc+1),rm};
-    return{addr,port:defaultPort||'443',rm};
-  });
-}
-async function fetchCIDRs(isp){
-  if(_cidrCache)return _cidrCache;
-  // 按运营商筛选的 CF 段（已剔除国内被墙的段，随机生成的优选IP 才连得通）
-  const gh='raw.githubusercontent.com',r=['cm','liu'].join('');
-  const file=isp==='cf'?'CF-CIDR.txt':`CF-CIDR/${isp}.txt`;
-  try{const res=await fetch(`https://${gh}/${r}/${r}/main/${file}`);if(res.ok){const t=await res.text();_cidrCache=t.replace(/[\t "\r\n]+/g,',').replace(/,+/g,',').split(',').filter(Boolean)}}
-  catch(_){}
-  // 兜底：内置官方 15 段（注意此为全量，含被墙段，仅断网时应急）
-  if(!_cidrCache||!_cidrCache.length)_cidrCache=CF_IP_RANGES.length?CF_IP_RANGES.slice():FALLBACK_CIDR;
-  return _cidrCache;
-}
-function ipFromCIDR(cidr){const[b,bits]=cidr.split('/');const p=parseInt(bits),hb=32-p;const ipInt=b.split('.').reduce((a,n,i)=>a|(parseInt(n)<<(24-i*8)),0);const mask=(0xFFFFFFFF<<hb)>>>0,rand=Math.floor(Math.random()*Math.pow(2,hb));const rip=(((ipInt&mask)>>>0)+rand)>>>0;return[(rip>>>24)&0xFF,(rip>>>16)&0xFF,(rip>>>8)&0xFF,rip&0xFF].join('.')}
-// IPv4 是否落在某个 CIDR 段内
-const _isIp4=s=>/^(\d{1,3}\.){3}\d{1,3}$/.test(s);
-function ip4ToInt(ip){return ip.split('.').reduce((a,n)=>(((a<<8)>>>0)|(parseInt(n)&0xff))>>>0,0)>>>0}
-function ipInCIDR(ip,cidr){const[base,bitsStr]=cidr.split('/');const bits=parseInt(bitsStr);if(!_isIp4(ip))return false;const mask=bits===0?0:(0xFFFFFFFF<<(32-bits))>>>0;return((ip4ToInt(ip)&mask)>>>0)===((ip4ToInt(base)&mask)>>>0)}
-function isCfIp(ip){return CF_IP_RANGES.some(c=>ipInCIDR(ip,c))}
+/* ===== top bar（无菜单，仅品牌 + 状态 + 保存） ===== */
+.nav{position:sticky;top:0;z-index:30;background:rgba(255,255,255,.8);backdrop-filter:saturate(180%) blur(18px);border-bottom:1px solid var(--border)}
+.nav-in{max-width:1080px;margin:0 auto;display:flex;align-items:center;gap:12px;padding:0 var(--pad-x);height:70px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:11px;flex-shrink:0}
+.brand .logo{width:38px;height:38px;border-radius:11px;background:var(--grad);display:flex;align-items:center;justify-content:center;font-size:19px;box-shadow:0 6px 18px rgba(124,92,255,.42)}
+.brand b{font-size:19px;font-weight:800;letter-spacing:-.01em;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.sp{flex:1;min-width:8px}
+.pill{font-size:13px;padding:6px 13px;border-radius:999px;font-weight:600;white-space:nowrap}
+.pill-i{background:rgba(59,130,246,.1);color:var(--blue-d);border:1px solid rgba(59,130,246,.18)}
+.pill-h{background:#f1f3fa;color:var(--ink-2);max-width:230px;overflow:hidden;text-overflow:ellipsis;border:1px solid var(--border)}
+.saved{font-size:14px;color:var(--green);font-weight:600}
+.btn{padding:12px 28px;border-radius:999px;background:var(--grad);color:#fff;border:none;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;box-shadow:0 8px 22px rgba(124,92,255,.4);transition:filter .15s,transform .06s,box-shadow .15s}
+.btn:hover{filter:brightness(1.06);box-shadow:0 10px 28px rgba(124,92,255,.52)}
+.btn:active{transform:translateY(1px)}
+.btn:disabled{filter:grayscale(.35) opacity(.6);cursor:not-allowed;box-shadow:none}
 
-// ==================================================
-// PROXYIP (支持多值：逗号分隔的 IP:端口 或 域名)
-// ==================================================
-async function dohQuery(name,type){
-  const url=`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(name)}&type=${type}`;
-  try{const res=await fetch(url,{headers:{'Accept':'application/dns-json'}});if(!res.ok)return[];const d=await res.json();return d.Answer||[]}catch(_){return[]}
+/* ===== single-page layout ===== */
+.wrap{max-width:1080px;margin:0 auto;padding:var(--gap) var(--pad-x) 72px;display:flex;flex-direction:column;gap:var(--gap)}
+
+/* ===== hero ===== */
+.hero{padding:24px 4px 8px}
+.hero-t{font-size:46px;font-weight:800;letter-spacing:-.025em;line-height:1.06;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero-sub{margin-top:14px;font-size:16px;color:var(--muted);max-width:600px}
+
+/* ===== cards ===== */
+.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.card-h{display:flex;align-items:center;gap:10px;font-size:16.5px;font-weight:700;padding:var(--pad-y) var(--pad-x);border-bottom:1px solid var(--line)}
+.card-h .ico{font-size:18px}
+.card-sub{font-size:13px;color:var(--muted);font-weight:500;margin-left:auto}
+
+/* ===== field rows（盒式输入框） ===== */
+.field{display:flex;align-items:center;gap:18px;padding:14px var(--pad-x);border-bottom:1px solid var(--line)}
+.field:last-child{border-bottom:none}
+.field>label{font-size:14.5px;color:var(--ink-2);width:92px;flex-shrink:0;font-weight:600}
+.field input,.field select{flex:1;min-width:0;background:var(--soft);border:1px solid var(--border);border-radius:12px;padding:11px 15px;font-size:15px;color:var(--ink);outline:none;font-family:inherit;transition:border-color .15s,box-shadow .15s,background .15s}
+.field input::placeholder{color:#b6bdce}
+.field input:focus,.field select:focus{border-color:var(--purple);background:#fff;box-shadow:0 0 0 4px rgba(124,92,255,.12)}
+.field select{-webkit-appearance:none;appearance:none;cursor:pointer;padding-right:34px;background-image:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='14' viewBox='0 0 10 14'><path d='M2 5l3 3 3-3' stroke='%236c7389' stroke-width='1.6' fill='none' stroke-linecap='round'/></svg>");background-repeat:no-repeat;background-position:right 13px center}
+.field.sub label{color:var(--muted-2);font-style:italic;font-weight:500}
+
+/* ===== checkboxes ===== */
+.checks{display:flex;flex-wrap:wrap;gap:12px 26px;padding:18px var(--pad-x)}
+.ck{display:flex;align-items:center;gap:9px;cursor:pointer}
+.ck input{width:18px;height:18px;accent-color:var(--purple);cursor:pointer}
+.ck span{font-size:14.5px;color:var(--ink-2);font-weight:500}
+
+/* ===== unified IP list ===== */
+.ip-head{display:flex;align-items:center;justify-content:space-between;padding:var(--pad-y) var(--pad-x);border-bottom:1px solid var(--line)}
+.ip-head .t{font-size:16.5px;font-weight:700}
+.badge{font-size:12.5px;background:rgba(124,92,255,.12);color:var(--indigo);padding:4px 12px;border-radius:999px;font-weight:600;border:1px solid rgba(124,92,255,.2)}
+.ip-ta{width:100%;min-height:230px;border:none;padding:16px var(--pad-x);font-family:var(--mono);font-size:13.5px;color:#5b4bd6;background:var(--soft);resize:vertical;outline:none;line-height:2;display:block}
+.ip-ta::placeholder{color:#aab2c6}
+.ip-hint{font-size:13px;color:var(--muted);padding:13px var(--pad-x);border-top:1px solid var(--line);line-height:1.75}
+.ip-hint code{background:#eef1f8;padding:2px 7px;border-radius:6px;font-family:var(--mono);font-size:12px;color:var(--ink-2)}
+
+/* ===== quick-add API bar ===== */
+.qa-field{display:flex;align-items:center;gap:14px;padding:16px var(--pad-x);border-top:1px solid var(--line);flex-wrap:wrap}
+.qa-field.top{align-items:flex-start}
+.qa-flabel{width:96px;flex-shrink:0;font-size:14.5px;color:var(--ink-2);font-weight:600;line-height:1.4}
+.qa-field.top .qa-flabel{padding-top:11px}
+.qa-field .cst-ta{flex:1;min-width:0}
+.qa-u{flex:1;min-width:200px;background:var(--soft);border:1px solid var(--border);border-radius:12px;padding:11px 15px;font-size:14.5px;outline:none;font-family:inherit;color:var(--ink);transition:border-color .15s,box-shadow .15s,background .15s}
+.qa-p{width:66px;background:var(--soft);border:1px solid var(--border);border-radius:12px;padding:11px;font-size:14.5px;text-align:center;outline:none;font-family:inherit;flex-shrink:0;color:var(--ink);transition:border-color .15s,box-shadow .15s,background .15s}
+.qa-u:focus,.qa-p:focus{border-color:var(--purple);background:#fff;box-shadow:0 0 0 4px rgba(124,92,255,.12)}
+.qa-u::placeholder{color:#b6bdce}
+.btn-2,.qa-b{padding:11px 19px;border-radius:12px;background:#fff;color:var(--blue-d);border:1px solid rgba(59,130,246,.32);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;box-shadow:0 2px 8px rgba(99,102,241,.07);transition:background .15s,border-color .15s,transform .06s,box-shadow .15s}
+.btn-2:hover,.qa-b:hover{background:rgba(59,130,246,.08);box-shadow:0 4px 14px rgba(99,102,241,.13)}
+.btn-2:active,.qa-b:active{transform:translateY(1px)}
+.qa-b:disabled{opacity:.5;cursor:not-allowed;box-shadow:none}
+.qa-st{font-size:13px;min-height:18px;flex-shrink:0}.qa-st.ok{color:var(--green)}.qa-st.er{color:var(--red)}
+.qa-acts{display:none;gap:11px;padding:0 var(--pad-x) 14px}
+.qa-acts.show{display:flex}
+.qa-ab{flex:1;padding:11px;border-radius:12px;border:1px solid;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;background:#fff;transition:background .15s}
+.qa-ab.add-ip{color:var(--blue-d);border-color:rgba(59,130,246,.32)}.qa-ab.add-ip:hover{background:rgba(59,130,246,.08)}
+.qa-ab.add-api{color:var(--green);border-color:rgba(15,159,110,.32)}.qa-ab.add-api:hover{background:rgba(15,159,110,.08)}
+.qa-preview{margin:0 var(--pad-x) 16px;border:1px solid var(--border);border-radius:13px;background:var(--soft);font-size:13.5px;font-family:var(--mono);max-height:170px;overflow-y:auto;display:none}
+.qa-preview.show{display:block}
+.qa-pv-item{padding:9px 15px;border-bottom:1px solid var(--line);color:#5b4bd6;word-break:break-all}
+.qa-pv-item:last-child{border-bottom:none}
+
+/* ===== CFST import ===== */
+.cst-ta{width:100%;min-height:96px;background:var(--soft);border:1px solid var(--border);border-radius:12px;padding:13px;font-family:var(--mono);font-size:13px;color:#5b4bd6;outline:none;resize:vertical;transition:border-color .15s,box-shadow .15s,background .15s}
+.cst-ta:focus{border-color:var(--purple);background:#fff;box-shadow:0 0 0 4px rgba(124,92,255,.12)}
+.cst-ta::placeholder{color:#aab2c6}
+
+/* ===== subscription link rows ===== */
+.sub-fold{margin-left:auto;padding:7px 16px;border-radius:10px;border:1px solid var(--border);background:#fff;color:var(--ink-2);font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit;transition:background .15s;flex-shrink:0}
+.sub-fold:hover{background:var(--soft)}
+.sub-list.folded{display:none}
+.sub-row{display:flex;align-items:center;gap:13px;padding:14px var(--pad-x);border-bottom:1px solid var(--line)}
+.sub-row:last-child{border-bottom:none}
+.sub-rl{width:104px;flex-shrink:0;font-size:14.5px;color:var(--ink-2);font-weight:600}
+.sub-link{flex:1;min-width:0;background:var(--soft);border:1px solid var(--border);border-radius:12px;padding:11px 15px;font-size:13px;font-family:var(--mono);color:#5b4bd6;outline:none;text-overflow:ellipsis;transition:border-color .15s,box-shadow .15s,background .15s}
+.sub-link:focus{border-color:var(--purple);background:#fff;box-shadow:0 0 0 4px rgba(124,92,255,.12)}
+.sub-btns{display:contents}
+.sub-qr,.sub-cp{padding:11px 18px;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;border:1px solid;transition:filter .15s,background .15s,transform .06s,box-shadow .15s}
+.sub-qr{background:#fff;color:var(--blue-d);border-color:rgba(59,130,246,.32);box-shadow:0 2px 8px rgba(99,102,241,.07)}
+.sub-qr:hover{background:rgba(59,130,246,.08)}
+.sub-cp{background:var(--grad);color:#fff;border-color:transparent;box-shadow:0 6px 16px rgba(124,92,255,.3)}
+.sub-cp:hover{filter:brightness(1.06)}
+.sub-qr:active,.sub-cp:active{transform:translateY(1px)}
+.sub-cp.copied{background:linear-gradient(135deg,#10b981,#059669);filter:none}
+/* QR modal */
+.qr-mask{position:fixed;inset:0;background:rgba(20,22,40,.5);backdrop-filter:blur(5px);display:none;align-items:center;justify-content:center;z-index:60;padding:20px}
+.qr-mask.show{display:flex}
+.qr-card{background:#fff;border-radius:20px;padding:26px;max-width:330px;width:100%;text-align:center;box-shadow:0 24px 70px rgba(16,24,40,.35)}
+.qr-card h4{font-size:16.5px;font-weight:700;color:var(--ink);margin-bottom:18px}
+.qr-img{width:228px;height:228px;margin:0 auto;display:block;border-radius:12px;image-rendering:pixelated;background:var(--soft)}
+.qr-url{margin-top:14px;font-size:12px;color:var(--muted);font-family:var(--mono);word-break:break-all;max-height:64px;overflow:auto;line-height:1.6}
+.qr-close{margin-top:18px;width:100%;padding:12px;border-radius:12px;border:none;background:var(--grad);color:#fff;font-weight:600;cursor:pointer;font-family:inherit;font-size:14.5px}
+
+/* ===== proxyip picker ===== */
+.px-list{max-height:320px;overflow-y:auto;padding:0 var(--pad-x);display:none}
+.px-list.show{display:block}
+.px-item{display:flex;align-items:center;gap:11px;padding:10px 0;border-bottom:1px solid var(--line);cursor:pointer;font-size:14px}
+.px-item:hover{background:var(--soft)}
+.px-item:last-child{border-bottom:none}
+.px-item input{width:16px;height:16px;accent-color:var(--purple);cursor:pointer;flex-shrink:0}
+.px-item .px-ip{font-family:var(--mono);font-size:13px;color:#5b4bd6;flex:1}
+.px-item .px-colo{font-size:12px;background:#f1f3fa;padding:3px 9px;border-radius:6px;color:var(--muted);flex-shrink:0}
+.px-loading{text-align:center;padding:24px;color:var(--muted);font-size:14px}
+.px-bar{display:flex;align-items:center;gap:11px;padding:16px var(--pad-x);border-top:1px solid var(--line)}
+.px-ctrl{display:flex;align-items:center;gap:13px;padding:16px var(--pad-x);border-top:1px solid var(--line);flex-wrap:wrap}
+.px-prog{font-size:13px;color:var(--muted)}
+.px-item .px-ms{font-family:var(--mono);font-size:13px;font-weight:700;flex-shrink:0;width:62px}
+.px-ms.fast{color:#0f9f6e}.px-ms.mid{color:#d97706}.px-ms.slow{color:#dc2626}
+.px-item .px-fam{font-size:12px;padding:3px 9px;border-radius:6px;flex-shrink:0;font-weight:600}
+.px-fam.v4{background:#dcfce7;color:#15803d}.px-fam.v6{background:#dbeafe;color:#1d4ed8}
+.px-hint{font-size:13px;color:var(--muted);padding:14px var(--pad-x);border-top:1px solid var(--line);line-height:1.75}
+.px-hint b{color:var(--ink-2)}
+
+/* ===== CF usage stats ===== */
+.cf-stats{display:flex;gap:12px;padding:20px var(--pad-x);flex-wrap:wrap}
+.cf-stat{flex:1;min-width:110px;background:var(--soft);border:1px solid var(--border);border-radius:14px;padding:14px 16px;text-align:center}
+.cf-stat .cf-n{font-size:21px;font-weight:800;color:var(--ink);font-family:var(--mono);letter-spacing:-.02em}
+.cf-stat .cf-l{font-size:12px;color:var(--muted);margin-top:5px;font-weight:500}
+.cf-bar-wrap{padding:0 var(--pad-x) 18px}
+.cf-bar{height:8px;background:var(--soft);border-radius:999px;overflow:hidden;border:1px solid var(--border)}
+.cf-bar-fill{height:100%;background:var(--grad);border-radius:999px;transition:width .5s}
+.cf-bar-label{font-size:12px;color:var(--muted);margin-top:6px;text-align:right}
+
+/* ===== toggle switch ===== */
+.toggle-sw{display:flex;align-items:center;gap:8px;cursor:pointer;flex-shrink:0;user-select:none}
+.toggle-sw input{display:none}
+.toggle-sw .sw{width:36px;height:20px;background:#dde1ed;border-radius:999px;position:relative;transition:background .2s;flex-shrink:0}
+.toggle-sw .sw:after{content:'';position:absolute;left:2px;top:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:transform .2s}
+.toggle-sw input:checked+.sw{background:var(--purple)}
+.toggle-sw input:checked+.sw:after{transform:translateX(16px)}
+.toggle-sw .sw-label{font-size:13px;color:var(--muted);font-weight:500}
+
+/* ===== responsive ===== */
+/* 平板 / 小笔记本：略收内边距 */
+@media(max-width:980px){
+  :root{--pad-x:22px}
 }
-// 将 proxyip 字符串解析为 [{hostname,port},...] 列表
-// 支持：IP:port、域名、逗号分隔多个
-async function resolveProxy(raw){
-  if(!raw||!raw.trim())return[];
-  // 按逗号/换行拆分
-  const entries=raw.split(/[,\n]+/).map(s=>s.trim()).filter(Boolean);
-  const result=[];
-  const ipv4Re=/^(\d{1,3}\.){3}\d{1,3}$/;
-  const ipv6Re=/^\[?([a-fA-F0-9:]+)\]?$/;
-  for(const entry of entries){
-    // 拆分地址:端口
-    let addr=entry,port=443;
-    if(entry.includes(']:')){const p=entry.split(']:');addr=p[0]+']';port=parseInt(p[1])||443}
-    else{const li=entry.lastIndexOf(':');if(li>0&&/^\d+$/.test(entry.slice(li+1))){addr=entry.slice(0,li);port=parseInt(entry.slice(li+1))||443}}
-    // 纯 IPv4
-    if(ipv4Re.test(addr)){result.push({hostname:addr,port});continue}
-    // 纯 IPv6
-    const m6=addr.match(ipv6Re);
-    if(m6&&m6[1].includes(':')){result.push({hostname:addr,port});continue}
-    // 域名 → DoH DNS 解析
-    const txtR=await dohQuery(addr,'TXT');
-    let found=false;
-    for(const r of txtR){let t=String(r.data||'');if(t.startsWith('"')&&t.endsWith('"'))t=t.slice(1,-1);const e=t.replace(/\\010/g,',').split(',').map(s=>s.trim()).filter(Boolean);for(const x of e){const xi=x.lastIndexOf(':');if(xi>0){result.push({hostname:x.slice(0,xi),port:parseInt(x.slice(xi+1))||443})}else{result.push({hostname:x,port:443})};found=true}}
-    if(!found){const aR=await dohQuery(addr,'A');for(const r of aR)result.push({hostname:r.data,port})}
-  }
-  return result;
+/* 手机：头部精简（状态已在 hero 卡片展示）、字号与间距收紧 */
+@media(max-width:720px){
+  .nav-in{height:auto;padding:12px 16px;gap:10px}
+  .nav .pill-i,.nav .pill-h{display:none}
+  .wrap{padding:16px 16px 52px}
+  .hero{padding:12px 2px 4px}
+  .hero-t{font-size:33px}
+  .hero-sub{font-size:14.5px}
+  .card-h,.ip-head .t{font-size:15.5px}
+  .field{gap:12px}
+  .field>label{width:74px;font-size:14px}
+  /* 订阅行竖排：标题在上、链接整行、两个按钮并排 */
+  .sub-row{flex-direction:column;align-items:stretch;gap:10px}
+  .sub-rl{width:auto;color:var(--ink);font-size:15px}
+  .sub-btns{display:flex;gap:10px}
+  .sub-btns .sub-qr,.sub-btns .sub-cp{flex:1;text-align:center}
+  /* 工具行控件多，提前竖排：标题在上，输入/按钮各占一行 */
+  .qa-field,.qa-field.top{flex-direction:column;align-items:stretch;gap:10px}
+  .qa-field .qa-flabel,.qa-field.top .qa-flabel{width:auto;padding-top:0;color:var(--ink);font-size:15px}
+  .qa-field .qa-u,.qa-field .qa-p{min-width:0;width:100%}
+  .qa-field .qa-st{order:1}
+  .qa-field .qa-b{width:100%}
 }
-// 竞速拨号：每批同时拨 CONC 个反代，谁先 opened 谁胜出，其余关闭。
-// 这样反代列表里前面有死 IP 也不会拖慢（不必逐个等超时）。
-async function connectViaProxy(list,data,connectFn,log,CONC=3){
-  for(let i=0;i<list.length;i+=CONC){
-    const batch=list.slice(i,i+CONC);
-    const socks=batch.map(({hostname,port})=>{const s=connectFn({hostname,port});return{s,p:s.opened.then(()=>s)}});
-    let winner=null;
-    try{winner=await Promise.any(socks.map(o=>o.p));}
-    catch(_){
-      log('px batch fail:',batch.map(b=>b.hostname+':'+b.port).join(','));
-      socks.forEach(o=>{try{o.s.close()}catch(_){}});
-      continue;
-    }
-    // 关闭未胜出的连接
-    socks.forEach(o=>{if(o.s!==winner){try{o.s.close()}catch(_){}}});
-    try{
-      if(data&&data.byteLength>0){const w=winner.writable.getWriter();await w.write(data);w.releaseLock()}
-      return winner;
-    }catch(e){log('px write fail:',e.message);try{winner.close()}catch(_){}continue;}
-  }
-  throw new Error('all proxy failed');
+/* 窄屏手机：字段标题上、输入框下，避免挤压 */
+@media(max-width:460px){
+  .nav-in{flex-wrap:nowrap}
+  .brand b{font-size:17px}
+  .btn{padding:11px 20px}
+  .field{flex-direction:column;align-items:stretch;gap:8px}
+  .field>label{width:auto}
 }
-// 判断目标是否在 Cloudflare 上（CF 站点 Worker 无法直连，需走 proxyip）
-const _cfTargetCache=new Map();
-async function isCfTarget(host){
-  if(!host||host.includes(':'))return false; // IPv6 暂不判断
-  let ip=host;
-  if(!_isIp4(host)){
-    if(_cfTargetCache.has(host))return _cfTargetCache.get(host);
-    const ans=await dohQuery(host,'A');
-    const rec=ans.find(r=>r.type===1&&_isIp4(String(r.data)));
-    if(!rec){_cfTargetCache.set(host,false);return false}
-    ip=String(rec.data);
-  }
-  const res=isCfIp(ip);
-  _cfTargetCache.set(host,res);
-  return res;
-}
+</style></head><body>
+<header class="nav">
+  <div class="nav-in">
+    <div class="brand"><div class="logo">⚡</div><b>米奇VPN</b></div>
+    <div class="sp"></div>
+    <span class="pill pill-i" id="ispTag">…</span>
+    <span class="pill pill-h" id="hostTag">…</span>
+    <span class="saved" id="savedMsg"></span>
+    <button class="btn" id="saveBtn">保存配置</button>
+  </div>
+</header>
 
-// ==================================================
-// WebSocket handler
-// ==================================================
-async function handleWS(request,cfg){
-  if(!cfg.uuid)return new Response('not configured',{status:503});
-  const pair=new WebSocketPair(),[cw,sw]=Object.values(pair);
-  try{sw.accept()}catch(_){sw.accept()}sw.binaryType='arraybuffer';
-  const log=(...a)=>console.log('[ws]',...a);
-  let rs=null,tw=null,closed=false,bridged=false;
-  const cleanup=()=>{if(closed)return;closed=true;if(tw){try{tw.releaseLock()}catch(_){}}if(rs){try{rs.close()}catch(_){}}try{sw.close()}catch(_){}};
-  const startBridge=(sock)=>{if(bridged)return;bridged=true;const r=sock.readable.getReader();const p=(async()=>{try{while(true){const{done,value}=await r.read();if(done||closed)break;if(value&&value.byteLength>0&&sw.readyState===WebSocket.OPEN)sw.send(value)}}catch(e){log('r2w:',e.message)}finally{try{r.releaseLock()}catch(_){}cleanup()}})();p.catch(e=>{if(!closed){log('bridge:',e.message||e);cleanup()}})};
-  const w2tcp=async(data)=>{if(closed||!rs)return false;try{if(!tw)tw=rs.writable.getWriter();await tw.write(asBytes(data));return true}catch(e){log('w2t:',e.message);cleanup();return false}};
-  // ---- DNS over UDP（端口 53，走 DoH）----
-  let dnsMode=false,dnsHeadSent=false,dnsBuf=null,dnsRespHead=null;
-  const dohResolve=async(payload)=>{
-    const res=await fetch('https://cloudflare-dns.com/dns-query',{method:'POST',headers:{'Content-Type':'application/dns-message','Accept':'application/dns-message'},body:payload});
-    if(!res.ok)throw new Error('doh '+res.status);
-    return new Uint8Array(await res.arrayBuffer());
-  };
-  const handleDnsChunk=async(chunk)=>{
-    if(closed)return;
-    const c=asBytes(chunk);if(c.byteLength)dnsBuf=dnsBuf?mergeBuf(dnsBuf,c):c;
-    while(dnsBuf&&dnsBuf.byteLength>=2){
-      const len=(dnsBuf[0]<<8)|dnsBuf[1];
-      if(dnsBuf.byteLength<2+len)break;
-      const q=dnsBuf.subarray(2,2+len);dnsBuf=dnsBuf.subarray(2+len);
-      if(!len)continue;
-      try{
-        const ans=await dohResolve(q);
-        if(closed||sw.readyState!==WebSocket.OPEN)return;
-        const head=dnsHeadSent?null:dnsRespHead;const hl=head?head.byteLength:0;
-        const frame=new Uint8Array(hl+2+ans.byteLength);
-        if(head)frame.set(head,0);
-        frame[hl]=(ans.byteLength>>>8)&0xff;frame[hl+1]=ans.byteLength&0xff;
-        frame.set(ans,hl+2);
-        sw.send(frame);dnsHeadSent=true;
-      }catch(e){log('dns:',e.message)}
-    }
-  };
-  const doConnect=async(data)=>{
-    const p=parsePacket(data,cfg.uuid);
-    if(!p){sw.readyState===WebSocket.OPEN&&sw.close(1008,'bad packet');return}
-    log(`conn:${p.host}:${p.port} udp:${p.udp}`);
-    if(isBadHost(p.host)){sw.readyState===WebSocket.OPEN&&sw.close(1008,'blocked');return}
-    // UDP：仅支持 DNS（端口 53），其余 UDP 拒绝
-    if(p.udp){
-      if(p.port!==53){sw.readyState===WebSocket.OPEN&&sw.close(1008,'udp only 53');return}
-      dnsMode=true;dnsRespHead=p.rh;
-      await handleDnsChunk(p.raw);
-      return;
-    }
-    try{
-      if(!_sockMod){try{_sockMod=await import('cloudflare:sockets')}catch(e){throw new Error('sockets:'+e.message)}}
-      const cf=_sockMod.connect,pxd=(cfg.proxyip||'').trim();
-      // 0. 识别 CF IP 段：目标在 Cloudflare 上 → 直连必失败，直接走 proxyip
-      if(pxd){
-        let cfHit=false;try{cfHit=await isCfTarget(p.host)}catch(_){}
-        if(cfHit){
-          log('CF target → proxy');
-          const pl=await resolveProxy(pxd);
-          if(pl.length)rs=await connectViaProxy(pl,p.raw,cf,log);
-        }
-      }
-      // 1. 非 CF 目标（或反代未配/解析为空）→ 先直连
-      if(!rs){
-        try{
-          rs=cf({hostname:p.host,port:p.port});
-          await rs.opened;
-          if(p.raw&&p.raw.byteLength>0){const w=rs.writable.getWriter();await w.write(p.raw);w.releaseLock()}
-        }catch(de){
-          // 2. 直连失败 → proxyip 兜底
-          log('direct fail, try proxy:',de.message);
-          rs=null;
-          if(!pxd)throw de;
-          const pl=await resolveProxy(pxd);
-          if(!pl.length)throw new Error('proxy empty');
-          rs=await connectViaProxy(pl,p.raw,cf,log);
-        }
-      }
-      if(p.rh&&sw.readyState===WebSocket.OPEN)sw.send(p.rh.buffer);
-      startBridge(rs);
-    }catch(e){log('tcp:',e.message);sw.readyState===WebSocket.OPEN&&sw.close(1011,'up fail')}
-  };
-  let buf=null,parsed=false;
-  sw.addEventListener('message',async(ev)=>{try{if(closed)return;let c=ev.data;if(c instanceof ArrayBuffer)c=new Uint8Array(c);else if(typeof c==='string')c=te.encode(c);else if(!(c instanceof Uint8Array))return;if(c.byteLength===0)return;if(!parsed){buf=buf?mergeBuf(buf,c):c;if(parsePacket(buf,cfg.uuid)){parsed=true;await doConnect(buf);buf=null}}else if(dnsMode)await handleDnsChunk(c);else if(rs)await w2tcp(c)}catch(e){log('msg:',e.message);cleanup()}});
-  sw.addEventListener('close',()=>{log('closed');cleanup()});
-  sw.addEventListener('error',(e)=>{log('err:',e.message||e);cleanup()});
-  const early=request.headers.get('Sec-WebSocket-Protocol')||'';if(early){try{const eb=b64ud(early);if(eb.byteLength>EARLY_MAX){sw.close(1008,'too big');return new Response(null,{status:400})}if(eb.byteLength>0){if(parsePacket(eb,cfg.uuid)){parsed=true;buf=null;queueMicrotask(()=>{doConnect(eb).catch(e=>log('early:',e.message||e))})}else buf=eb}}catch(_){sw.close(1008,'bad early');return new Response(null,{status:400})}}
-  return new Response(null,{status:101,webSocket:cw});
-}
-function isBadHost(h){const b=['speed.cloudflare.com','speedtest.net','fast.com'];return b.some(x=>h.toLowerCase().includes(x))}
+<main class="wrap">
 
-// ==================================================
-// Subscription generator
-// ==================================================
-// Collect the final node list (api: lines → static IPs → random fallback), with unique names
-async function collectNodes(request,cfg){
-  const u=new URL(request.url);
-  let ipList=[];
-  // Parse customIPs: lines starting with "api:" are real-time API URLs, rest are static IPs
-  if(cfg.customIPs&&cfg.customIPs.trim()){
-    const lines=cfg.customIPs.split(/\r?\n/).map(l=>l.trim()).filter(l=>l&&!l.startsWith('#'));
-    const apiLines=[],staticLines=[];
-    for(const l of lines){
-      if(l.toLowerCase().startsWith('api:'))apiLines.push(l.slice(4).trim());
-      else staticLines.push(l);
-    }
-    // Fetch each api: URL in parallel
-    if(apiLines.length>0){
-      const apiResults=await Promise.all(apiLines.map(async line=>{
-        // Format: "api:URL" or "api:URL:port" — last :number is port if numeric
-        let apiUrl=line,defaultPort='443';
-        const li=line.lastIndexOf(':');
-        if(li>0&&/^\d+$/.test(line.slice(li+1))){apiUrl=line.slice(0,li);defaultPort=line.slice(li+1)}
-        try{
-          const ctrl=new AbortController();const tid=setTimeout(()=>ctrl.abort(),8000);
-          const res=await fetch(apiUrl,{signal:ctrl.signal});clearTimeout(tid);
-          if(res.ok)return parseIpList(await res.text(),defaultPort);
-        }catch(_){}
-        return[];
-      }));
-      ipList.push(...apiResults.flat());
-    }
-    // Static IPs
-    if(staticLines.length>0){
-      ipList.push(...parseIpList(staticLines.join('\n'),'443'));
-    }
-  }
-  // Fallback: random CIDR-based IPs (also appended when autoFill is on)
-  if(!ipList.length||cfg.autoFill){
-    const isp=detectISP(request),cidrs=await fetchCIDRs(isp),label=ISP_LABEL[isp]||'通用优选';
-    const count=Math.min(parseInt(u.searchParams.get('count')||cfg.ipCount||'16'),100);
-    const rp=cfg.randomPort;
-    for(let i=0;i<count;i++){const cidr=cidrs[Math.floor(Math.random()*cidrs.length)];const pt=rp?String(CF_PORTS[Math.floor(Math.random()*CF_PORTS.length)]):(u.searchParams.get('port')||'443');ipList.push({addr:ipFromCIDR(cidr),port:pt,rm:`${label}-${i+1}`})}
-  }
-  // Assign unique names
-  const seen={};
-  return ipList.map((n,i)=>{
-    let base=(n.rm||`${cfg.subName||'CF'}-${i+1}`).trim();
-    if(seen[base]!==undefined){seen[base]++;base=`${base} ${seen[base]}`}else seen[base]=0;
-    return{addr:n.addr,port:String(n.port),name:base};
-  });
-}
-async function genLinks(request,cfg){
-  if(!cfg.uuid||!cfg.host)return new Response('not configured',{status:503});
-  const u=new URL(request.url),ua=(request.headers.get('User-Agent')||'').toLowerCase();
-  const target=(u.searchParams.get('target')||'').toLowerCase();
-  const wantB64=u.searchParams.has('base64')||u.searchParams.has('b64');
-  // 节点格式（本机处理），其余 target 原样转发给后端（源码不含具体格式名）
-  const NODE=['','mixed','base64','b64','plain','links'];
-  if(target&&!NODE.includes(target))return await convertSub(request,cfg,target);
-  const nodes=await collectNodes(request,cfg);
-  const pt=cfg.wsPath||'/ws',fp=cfg.enable0rtt?`${pt}?ed=2560`:pt;
-  const body=nodes.map(n=>buildLink(cfg.uuid,n.addr,n.port,cfg.host,fp,n.name,cfg)).join('\n');
-  const plain=target==='plain'||target==='links'||(ua.includes('mozilla')&&!wantB64);
-  const res=plain?body:b64e(body);
-  const hdrs=new Headers({'Content-Type':'text/plain; charset=utf-8','Profile-Update-Interval':'24','Cache-Control':'no-store'});
-  if(!ua.includes('mozilla'))hdrs.set('Content-Disposition',`attachment; filename*=utf-8''${encodeURIComponent(cfg.subName||'CF')}`);
-  return new Response(res,{status:200,headers:hdrs});
-}
-// 转发给外部订阅转换后端：worker 只提供 base64 节点，转换与分组由后端 + 规则配置完成
-async function convertSub(request,cfg,target){
-  const u=new URL(request.url);
-  const selfMixed=`${u.protocol}//${u.host}/sub?base64`; // 后端回来抓取本机的 base64 节点
-  const api=((cfg.subApi&&cfg.subApi.trim())?cfg.subApi.trim():DEF_SUBAPI).replace(/\/+$/,'');
-  const conf=(cfg.subConfig&&cfg.subConfig.trim())?cfg.subConfig.trim():DEF_SUBCONFIG;
-  const convUrl=`${api}/sub?target=${encodeURIComponent(target)}&url=${encodeURIComponent(selfMixed)}`
-    +`&insert=false&list=false&udp=true&emoji=${cfg.subEmoji?'true':'false'}&scv=${cfg.skipCert?'true':'false'}`
-    +`&config=${encodeURIComponent(conf)}`;
-  try{
-    const ctrl=new AbortController(),tid=setTimeout(()=>ctrl.abort(),15000);
-    const res=await fetch(convUrl,{headers:{'User-Agent':'sub-converter-client'},signal:ctrl.signal});
-    clearTimeout(tid);
-    if(!res.ok)return new Response('转换后端异常: '+res.status+' '+res.statusText,{status:502});
-    const hdrs=new Headers(res.headers);
-    hdrs.set('Cache-Control','no-store');hdrs.set('Profile-Update-Interval','24');
-    hdrs.delete('content-encoding');hdrs.delete('content-length');
-    return new Response(res.body,{status:200,headers:hdrs});
-  }catch(e){return new Response('转换后端请求失败: '+(e&&e.message?e.message:e),{status:502})}
-}
-function buildLink(uid,addr,port,host,path,rm,cfg){
-  const sni=cfg.sni||host,fp=cfg.fingerprint||'chrome',sec=nodeIsTls(port)?(cfg.security||'tls'):'none';
-  const p=new URLSearchParams();
-  p.set('security',sec);p.set('type','ws');p.set('host',host);p.set('path',path);p.set('encryption','none');
-  if(sec!=='none'){p.set('sni',sni);p.set('fp',fp);if(cfg.echDns)p.set('ech',(cfg.echSni?cfg.echSni+'+':'')+cfg.echDns);if(cfg.skipCert)p.set('allowInsecure','1');}
-  return PROTO+'://'+uid+'@'+addr+':'+port+'?'+p.toString()+'#'+encodeURIComponent(rm||addr);
-}
-function nodeIsTls(port){return !CF_HTTP_PORTS.includes(String(port))}
+  <!-- ===== 顶部 hero ===== -->
+  <div class="hero">
+    <h1 class="hero-t">CloudFlare · Ai</h1>
+    <p class="hero-sub">全球边缘计算 · 优化网络与负载均衡 · 全自动化管理</p>
+  </div>
 
-// ==================================================
-// CF 使用统计（今日 Workers + Pages 调用次数，GraphQL Analytics API）
-// ==================================================
-async function getCfUsage(accountId,apiToken){
-  if(!accountId||!apiToken)return{success:false,workers:0,pages:0,total:0,max:100000};
-  const now=new Date(),today=new Date(now);today.setUTCHours(0,0,0,0);
-  try{
-    const res=await fetch('https://api.cloudflare.com/client/v4/graphql',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiToken},
-      body:JSON.stringify({
-        query:`query($aid:String!,$f:AccountWorkersInvocationsAdaptiveFilter_InputObject){viewer{accounts(filter:{accountTag:$aid}){workersInvocationsAdaptive(limit:10000,filter:$f){sum{requests}}pagesFunctionsInvocationsAdaptiveGroups(limit:1000,filter:$f){sum{requests}}}}}`,
-        variables:{aid:accountId,f:{datetime_geq:today.toISOString(),datetime_leq:now.toISOString()}}
-      })
-    });
-    if(!res.ok)return{success:false,workers:0,pages:0,total:0,max:100000};
-    const d=await res.json();
-    if(d.errors?.length)return{success:false,workers:0,pages:0,total:0,max:100000};
-    const acc=d?.data?.viewer?.accounts?.[0];
-    if(!acc)return{success:false,workers:0,pages:0,total:0,max:100000};
-    const sum=a=>(a||[]).reduce((t,i)=>t+(i?.sum?.requests||0),0);
-    const workers=sum(acc.workersInvocationsAdaptive);
-    const pages=sum(acc.pagesFunctionsInvocationsAdaptiveGroups);
-    return{success:true,workers,pages,total:workers+pages,max:100000};
-  }catch(e){return{success:false,workers:0,pages:0,total:0,max:100000};}
-}
+  <!-- ===== 获取节点链接 ===== -->
+  <div class="card">
+    <div class="card-h"><span class="ico">📋</span>获取节点链接<button type="button" class="sub-fold" id="subFold">展开</button></div>
+    <div class="sub-list folded" id="subList">
+      <div class="sub-row" data-type="node">
+        <span class="sub-rl">节点链接格式</span>
+        <input class="sub-link" readonly value="加载中…">
+        <div class="sub-btns"><button type="button" class="sub-qr">▦ 二维码</button><button type="button" class="sub-cp">复制节点</button></div>
+      </div>
+      <div class="sub-row" data-q="">
+        <span class="sub-rl">自适应订阅</span>
+        <input class="sub-link" readonly>
+        <div class="sub-btns"><button type="button" class="sub-qr">▦ 二维码</button><button type="button" class="sub-cp">复制订阅</button></div>
+      </div>
+      <div class="sub-row" data-q="?base64">
+        <span class="sub-rl">Base64订阅</span>
+        <input class="sub-link" readonly>
+        <div class="sub-btns"><button type="button" class="sub-qr">▦ 二维码</button><button type="button" class="sub-cp">复制订阅</button></div>
+      </div>
+      <div class="sub-row" data-q="?target=clash">
+        <span class="sub-rl">Clash订阅</span>
+        <input class="sub-link" readonly>
+        <div class="sub-btns"><button type="button" class="sub-qr">▦ 二维码</button><button type="button" class="sub-cp">复制订阅</button></div>
+      </div>
+      <div class="sub-row" data-q="?target=singbox">
+        <span class="sub-rl">SingBox订阅</span>
+        <input class="sub-link" readonly>
+        <div class="sub-btns"><button type="button" class="sub-qr">▦ 二维码</button><button type="button" class="sub-cp">复制订阅</button></div>
+      </div>
+    </div>
+  </div>
 
-// ==================================================
-// 反代实测（网络 RTT：Worker 边缘节点 → 反代，裸 TCP 往返）
-// 独立模块：测速逻辑全在 probeRelay 内，将来要换指标只动这里。
-// 裸 TCP 直连反代 IP（不 DNS、不 TLS）→ Worker→反代 纯网络往返延迟，
-// 等同生产隧道 connectViaProxy 的那一跳，不依赖任何外部探针域名。ms=-1 表示超时/失败。
-// ==================================================
-const _pxGuard=t=>new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),t));
-async function probeRelay(connect,ip,port,timeout=4000){
-  const t0=Date.now();let s=null;
-  try{s=connect({hostname:ip,port});await Promise.race([s.opened,_pxGuard(timeout)]);const ms=Date.now()-t0;try{s.close()}catch(_){}return{ip,port,ms};}
-  catch(_){try{s&&s.close()}catch(__){}return{ip,port,ms:-1}}
-}
+  <!-- ===== CF 使用统计 ===== -->
+  <div class="card">
+    <div class="card-h">
+      <span class="ico">📊</span>使用统计
+      <span class="card-sub" id="cfUpdated"></span>
+      <button type="button" class="qa-b" id="cfRefresh" style="margin-left:10px">↻ 刷新</button>
+    </div>
+    <div class="cf-stats">
+      <div class="cf-stat"><div class="cf-n" id="cfWorkers">—</div><div class="cf-l">Workers 请求</div></div>
+      <div class="cf-stat"><div class="cf-n" id="cfPages">—</div><div class="cf-l">Pages 请求</div></div>
+      <div class="cf-stat"><div class="cf-n" id="cfTotal">—</div><div class="cf-l">今日合计</div></div>
+      <div class="cf-stat"><div class="cf-n">100,000</div><div class="cf-l">日配额</div></div>
+    </div>
+    <div class="cf-bar-wrap">
+      <div class="cf-bar"><div class="cf-bar-fill" id="cfBarFill" style="width:0%"></div></div>
+      <div class="cf-bar-label" id="cfBarLabel">— / 100,000</div>
+    </div>
+  </div>
 
-// ==================================================
-// Admin routes (no login required)
-// ==================================================
-async function handleAdmin(request,env){
-  const u=new URL(request.url),path=u.pathname.slice(1).toLowerCase();
-  const cfg=await loadCfg(env);
-  const J=(o,s=200)=>new Response(JSON.stringify(o),{status:s,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
+  <!-- ===== 优选列表 ===== -->
+  <div class="card">
+    <div class="ip-head">
+      <span class="t">优选列表</span>
+      <span class="badge" id="ipCountBadge">自动</span>
+      <label class="toggle-sw" title="开启后订阅同时追加随机生成的优选 IP（与手动 IP 叠加）">
+        <input type="checkbox" id="autoFill">
+        <span class="sw"></span>
+        <span class="sw-label">随机补全</span>
+      </label>
+    </div>
+    <textarea class="ip-ta" id="ipList" placeholder="每行一个条目，支持以下格式：&#10;&#10;IP:端口#备注 — 静态优选 IP&#10;api:URL:端口 — 实时 API，订阅时自动拉取&#10;&#10;不填端口时 默认使用443&#10;留空则自动生成优选 IP"></textarea>
+    <div class="ip-hint">
+      格式示例：<code>1.2.3.4:443#电信优选</code> &nbsp; <code>api:https://api.example.com/ip:443</code> &nbsp; <code>api:https://api.example.com/ip</code>
+    </div>
+    <div class="qa-field">
+      <label class="qa-flabel">快捷添加 API</label>
+      <input id="qaUrl" class="qa-u" placeholder="优选 API URL（https://...）">
+      <input id="qaPort" class="qa-p" value="443">
+      <span class="qa-st" id="qaSt"></span>
+      <button type="button" class="qa-b" id="qaBtn">获取并预览</button>
+    </div>
+    <div class="qa-acts" id="qaActs">
+      <button type="button" class="qa-ab add-ip" id="qaAddIp">追加 IP</button>
+      <button type="button" class="qa-ab add-api" id="qaAddApi">追加为 API 源</button>
+    </div>
+    <div class="qa-preview" id="qaPreview"></div>
+    <!-- CloudflareSpeedTest 导入 -->
+    <div class="qa-field top">
+      <label class="qa-flabel">导入测速结果</label>
+      <textarea id="cstInput" class="cst-ta" placeholder="粘贴你在CloudflareSpeedTest工具的result.csv内容，随后会按【IP#优选】格式追加到优选列表"></textarea>
+      <span class="qa-st" id="cstSt"></span>
+      <button type="button" class="qa-b" id="cstBtn">导入优选IP</button>
+    </div>
+  </div>
 
-  // 读取配置（供外部面板渲染）
-  if(path==='admin/config.json'){
-    const isp=detectISP(request);
-    return J({...cfg,ispName:ISP_LABEL[isp]||'通用'});
-  }
+  <!-- ===== 核心配置（独占一行） ===== -->
+  <div class="card">
+    <div class="card-h"><span class="ico">🔑</span>核心配置</div>
+    <div class="field"><label>UUID</label><input id="uuid" placeholder="必填"></div>
+    <div class="field"><label>域名</label><input id="host" placeholder="your.domain.com"></div>
+    <div class="field"><label>ECH SNI</label><input id="echSni" placeholder="可选"></div>
+    <div class="field"><label>ECH DNS</label><input id="echDns" placeholder="可选"></div>
+  </div>
 
-  // 保存配置（JSON）
-  if(path==='admin/save'&&request.method==='POST'){
-    let j={};try{j=await request.json()}catch(_){}
-    for(const k of['uuid','host','proxyip','customIPs','subName','wsPath','fingerprint','security','echSni','echDns','ipCount','subApi','subConfig']){if(k in j)cfg[k]=j[k]||''}
-    cfg.enable0rtt=!!j.enable0rtt;cfg.skipCert=!!j.skipCert;cfg.randomPort=!!j.randomPort;cfg.subEmoji=!!j.subEmoji;cfg.autoFill=!!j.autoFill;
-    await saveCfg(env,cfg);
-    return J({ok:true});
-  }
+  <!-- ===== 订阅设置（独占一行） ===== -->
+  <div class="card">
+    <div class="card-h"><span class="ico">📡</span>订阅设置</div>
+    <div class="field"><label>节点名称</label><input id="subName" placeholder="节点名称"></div>
+    <div class="field"><label>WS 路径</label><input id="wsPath" placeholder="/ws"></div>
+    <div class="field"><label>TLS 指纹</label><select id="fingerprint"><option value="chrome">Chrome</option><option value="firefox">Firefox</option><option value="safari">Safari</option><option value="random">随机</option></select></div>
+    <div class="field"><label>生成数量</label><input id="ipCount" type="number" min="1" max="100"></div>
+    <div class="field"><label>转换后端</label><select id="apiSel"></select></div>
+    <div class="field sub" id="apiTxtrow" style="display:none"><label>自定义</label><input id="apiTxt" placeholder="https://后端地址"></div>
+    <div class="field"><label>规则配置</label><select id="cfgSel"></select></div>
+    <div class="field sub" id="cfgTxtrow" style="display:none"><label>自定义</label><input id="cfgTxt" placeholder="规则 ini 的 URL"></div>
+    <div class="checks">
+      <label class="ck"><input type="checkbox" id="enable0rtt"><span>0-RTT</span></label>
+      <label class="ck"><input type="checkbox" id="skipCert"><span>跳过证书</span></label>
+      <label class="ck"><input type="checkbox" id="randomPort"><span>随机端口</span></label>
+      <label class="ck"><input type="checkbox" id="subEmoji"><span>Emoji</span></label>
+    </div>
+  </div>
 
-  // 订阅转换 下拉列表
-  if(path==='admin/sublist'){
-    const pull=x=>{const c=new AbortController(),t=setTimeout(()=>c.abort(),8000);return fetch(x,{signal:c.signal}).then(r=>r.ok?r.json():[]).then(j=>{clearTimeout(t);return j}).catch(()=>[])};
-    const [api,config]=await Promise.all([pull(SUBAPI_LIST_URL),pull(SUBCONFIG_LIST_URL)]);
-    // 直接返回远程列表原样，不自造默认项
-    return new Response(JSON.stringify({api,config}),{headers:{'Content-Type':'application/json','Cache-Control':'max-age=3600'}});
-  }
+  <!-- ===== 反代测速 ===== -->
+  <div class="card">
+    <div class="ip-head">
+      <span class="t">🌍 反代测速</span>
+      <span class="badge" id="pxUpdated">…</span>
+      <button type="button" class="qa-b" id="pxRefresh" title="重新拉取 all.json">↻ 刷新</button>
+    </div>
+    <div class="field"><label>反代IP</label><input id="proxyip" placeholder="域名 或 IP:端口，多个逗号分隔（测速结果追加到这里）"></div>
+    <div class="field">
+      <label>目标地区</label>
+      <select id="pxCountry"><option value="">选择国家/地区…</option></select>
+    </div>
+    <div class="px-ctrl" id="pxCtrl" style="display:none">
+      <input type="number" id="pxBatch" value="10" min="1" max="20" title="每次测速的 IP 数量" style="width:64px">
+      <button type="button" class="qa-b" id="pxTest">⚡ 开始优选延迟</button>
+      <button type="button" class="qa-b" id="pxStop" style="display:none">■ 停止</button>
+      <span class="px-prog" id="pxProg"></span>
+    </div>
+    <div class="px-loading" id="pxLoading" style="display:none">加载中…</div>
+    <div class="px-list" id="pxList"></div>
+    <div class="px-bar" id="pxBar" style="display:none">
+      <span style="font-size:13px;color:var(--muted)" id="pxSelCount">已选 0</span>
+      <div style="flex:1"></div>
+      <button type="button" class="qa-b" id="pxAddSel">追加选中</button>
+      <button type="button" class="qa-b" id="pxAddAll">追加全部存活</button>
+    </div>
+  </div>
 
-  // 预览：从外部 API 拉优选IP
-  if(path==='admin/getapi'){
-    const apiUrl=u.searchParams.get('url'),port=u.searchParams.get('port')||'443';
-    if(!apiUrl)return J({ok:false,msg:'missing url'},400);
-    try{
-      const ctrl=new AbortController();const tid=setTimeout(()=>ctrl.abort(),6000);
-      const res=await fetch(apiUrl,{signal:ctrl.signal});clearTimeout(tid);
-      if(!res.ok)throw new Error('HTTP '+res.status);
-      const parsed=parseIpList(await res.text(),port);
-      return J({ok:true,data:parsed.map(({addr,port:p,rm})=>addr+':'+p+(rm?'#'+rm:''))});
-    }catch(e){return J({ok:false,msg:e.message})}
-  }
+</main>
+<!-- QR 弹窗（二维码在浏览器本地生成，链接不外发） -->
+<div class="qr-mask" id="qrMask">
+  <div class="qr-card">
+    <h4 id="qrTitle">二维码</h4>
+    <img class="qr-img" id="qrImg" alt="QR">
+    <div class="qr-url" id="qrUrl"></div>
+    <button type="button" class="qr-close">关闭</button>
+  </div>
+</div>
+<script>
+var _qaIps=[],_qaUrl='',_qaPort='443';
+var V=id=>document.getElementById(id);
+var val=id=>V(id).value.trim();
+var setv=(id,v)=>{V(id).value=v==null?'':v;};
+var setck=(id,v)=>{V(id).checked=!!v;};
 
-  // CF 使用统计：从 KV 读凭证，调 GraphQL API 返回今日数据
-  if(path==='admin/cfusage'){
-    let creds={};try{const r=await env.STORE.get('cfCreds');if(r)creds=JSON.parse(r);}catch(_){}
-    return J(await getCfUsage(creds.accountId,creds.apiToken));
-  }
+fetch('/admin/config.json').then(function(r){return r.json()}).then(function(c){
+  ['uuid','host','proxyip','echSni','echDns','subName','wsPath','ipCount'].forEach(function(k){setv(k,c[k]);});
+  setv('fingerprint',c.fingerprint||'chrome');
+  setv('ipList',c.customIPs);
+  setv('apiTxt',c.subApi);setv('cfgTxt',c.subConfig);
+  ['enable0rtt','skipCert','randomPort','subEmoji','autoFill'].forEach(function(k){setck(k,c[k]);});
+  V('ispTag').textContent=c.ispName||'通用';
+  V('hostTag').textContent=c.host||'待配置';
+  updateBadge(c.customIPs||'');
+  loadSublist();
+  buildSubLinks();
+});
 
-  // 注：反代IP 扫描库(all.json)与「选国家」仍在外部面板(浏览器)完成，worker 不参与。
-  //     测速改为 worker 实测（见下）—— 这样量到的是 Worker→反代 的真实链路延迟，
-  //     而非浏览器→反代。代价：worker 会主动连一批陌生反代 IP，有一定账号风险。
-  if(path==='admin/pxtest'&&request.method==='POST'){
-    let targets=[];try{const b=await request.json();if(Array.isArray(b.targets))targets=b.targets}catch(_){}
-    targets=targets.slice(0,60); // 每批最多20个IP×3端口=60；实际数量由前端控制
-    if(!_sockMod){try{_sockMod=await import('cloudflare:sockets')}catch(e){return J({error:'sockets:'+e.message},500)}}
-    const cf=_sockMod.connect;
-    const results=await Promise.all(targets.map(t=>probeRelay(cf,String(t.ip),parseInt(t.port)||443)));
-    return J({results});
-  }
-
-  // 其余 /admin* → 拉取外部托管的面板 UI 并原样返回（界面不写进 worker）
-  const PANEL=env.PANEL||env.panel||'';
-  if(!PANEL)return new Response('未配置面板：请在 Worker 环境变量里设置 PANEL = 你托管的 admin.html 地址',{status:200,headers:{'Content-Type':'text/plain;charset=utf-8'}});
-  try{
-    const res=await fetch(PANEL,{cf:{cacheTtl:300}});
-    if(!res.ok)return new Response('面板加载失败: '+res.status,{status:502});
-    return new Response(res.body,{status:200,headers:{'Content-Type':'text/html;charset=utf-8','Cache-Control':'no-store'}});
-  }catch(e){return new Response('面板加载失败: '+(e&&e.message?e.message:e),{status:502})}
+function updateBadge(text){
+  var lines=text.split('\n').filter(function(l){return l.trim()&&!l.trim().startsWith('#');});
+  var ips=0,apis=0;
+  lines.forEach(function(l){l.trim().startsWith('api:')?apis++:ips++;});
+  var parts=[];
+  if(ips)parts.push(ips+' IP');
+  if(apis)parts.push(apis+' API');
+  V('ipCountBadge').textContent=parts.length?parts.join(' + '):'自动';
 }
 
-// ==================================================
-// Main router
-// ==================================================
-export default{
-  async fetch(request,env){
-    try{
-      const u=new URL(request.url),p=u.pathname.slice(1).toLowerCase();
-      const up=(request.headers.get('Upgrade')||'').toLowerCase();
-      const cfg=await loadCfg(env);
+V('ipList').addEventListener('input',function(){updateBadge(V('ipList').value);});
 
-      if(p.startsWith('admin'))return await handleAdmin(request,env);
-      if(up==='websocket')return await handleWS(request,cfg);
-      if(p==='sub')return await genLinks(request,cfg);
-      if(p==='robots.txt')return new Response('User-agent: *\nDisallow: /',{status:200,headers:{'Content-Type':'text/plain;charset=UTF-8'}});
-
-      
-      return new Response(NGINX_PAGE,{status:200,headers:{'Content-Type':'text/html','Server':'nginx'}});
-    }catch(e){
-      const detail=(e&&e.stack)?e.stack:(e&&e.message?e.message:String(e));
-      return new Response('Worker Error:\n'+detail,{status:500,headers:{'Content-Type':'text/plain;charset=UTF-8'}});
-    }
-  }
+V('saveBtn').onclick=function(){
+  var body={uuid:val('uuid'),host:val('host'),proxyip:val('proxyip'),customIPs:val('ipList'),
+    subName:val('subName'),wsPath:val('wsPath'),fingerprint:val('fingerprint'),ipCount:val('ipCount'),
+    echSni:val('echSni'),echDns:val('echDns'),subApi:val('apiTxt'),subConfig:val('cfgTxt'),
+    enable0rtt:V('enable0rtt').checked,skipCert:V('skipCert').checked,randomPort:V('randomPort').checked,subEmoji:V('subEmoji').checked,autoFill:V('autoFill').checked};
+  var b=V('saveBtn');b.disabled=true;b.textContent='保存中…';
+  fetch('/admin/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){return r.json()}).then(function(j){
+    V('savedMsg').textContent=j.ok?'✓ 已保存':'保存失败';
+    V('hostTag').textContent=body.host||'待配置';
+    if(j.ok)buildSubLinks();
+    setTimeout(function(){V('savedMsg').textContent='';},2500);
+  }).catch(function(){V('savedMsg').textContent='保存失败';}).finally(function(){b.disabled=false;b.textContent='保存配置';});
 };
+
+/* Quick-add API */
+V('qaBtn').onclick=function(){
+  var url=val('qaUrl'),port=V('qaPort').value||'443',btn=V('qaBtn'),st=V('qaSt'),pv=V('qaPreview'),acts=V('qaActs');
+  if(!url){st.className='qa-st er';st.textContent='请输入 URL';return;}
+  btn.disabled=true;btn.textContent='获取中…';st.textContent='';pv.classList.remove('show');pv.innerHTML='';acts.classList.remove('show');_qaIps=[];
+  fetch('/admin/getapi?url='+encodeURIComponent(url)+'&port='+port).then(function(r){return r.json()}).then(function(j){
+    if(j.ok&&j.data.length){
+      _qaIps=j.data;_qaUrl=url;_qaPort=port;
+      /* Show preview list */
+      pv.innerHTML='';
+      j.data.forEach(function(ip){var d=document.createElement('div');d.className='qa-pv-item';d.textContent=ip;pv.appendChild(d);});
+      pv.classList.add('show');
+      /* Show action buttons ABOVE preview */
+      V('qaAddIp').textContent='追加 '+j.data.length+' 条 IP';
+      acts.classList.add('show');
+      st.className='qa-st ok';st.textContent='✓ 获取到 '+j.data.length+' 条';
+    }else{
+      st.className='qa-st er';st.textContent=j.msg||'返回为空';
+    }
+  }).catch(function(e){st.className='qa-st er';st.textContent='✗ '+e.message;}).finally(function(){btn.disabled=false;btn.textContent='获取并预览';});
+};
+
+V('qaAddIp').onclick=function(){
+  if(!_qaIps.length)return;
+  var ta=V('ipList');ta.value=(ta.value.trim()?ta.value.trim()+'\n':'')+_qaIps.join('\n');
+  updateBadge(ta.value);
+  V('qaPreview').classList.remove('show');V('qaPreview').innerHTML='';
+  V('qaActs').classList.remove('show');_qaIps=[];
+  V('qaSt').className='qa-st ok';V('qaSt').textContent='✓ 已追加 IP';
+};
+
+V('qaAddApi').onclick=function(){
+  if(!_qaUrl)return;
+  var ta=V('ipList');
+  var apiLine='api:'+_qaUrl+(_qaPort&&_qaPort!=='443'?':'+_qaPort:'');
+  ta.value=(ta.value.trim()?ta.value.trim()+'\n':'')+apiLine;
+  updateBadge(ta.value);
+  V('qaPreview').classList.remove('show');V('qaPreview').innerHTML='';
+  V('qaActs').classList.remove('show');_qaIps=[];_qaUrl='';
+  V('qaSt').className='qa-st ok';V('qaSt').textContent='✓ 已追加 API';
+};
+
+/* CloudflareSpeedTest 导入：取每行第一列 IP，按 IP#优选 追加到优选列表（跳过表头/重复） */
+function _bareAddr(line){
+  var a=line.trim();if(!a||a[0]==='#')return '';
+  var hi=a.indexOf('#');if(hi>=0)a=a.slice(0,hi);a=a.trim();
+  if(a.toLowerCase().indexOf('api:')===0)return '';
+  if(a.indexOf(']:')>=0)a=a.slice(0,a.indexOf(']:')+1);
+  else if(a.indexOf('.')>=0){var lc=a.lastIndexOf(':');if(lc>=0&&/^\d+$/.test(a.slice(lc+1)))a=a.slice(0,lc);}
+  return a;
+}
+V('cstBtn').onclick=function(){
+  var st=V('cstSt'),raw=V('cstInput').value;
+  var ipRe=/^(?:\d{1,3}\.){3}\d{1,3}$|^[0-9a-fA-F:]+:[0-9a-fA-F:]+$/;
+  var ta=V('ipList'),seen={};
+  ta.value.split(/\r?\n/).forEach(function(l){var a=_bareAddr(l);if(a)seen[a]=1;});
+  var added=[],n=0;
+  raw.split(/\r?\n/).forEach(function(l){
+    var cols=l.split(',');
+    var f=(cols[0]||'').trim().replace(/^\[|\]$/g,'');
+    if(!f||!ipRe.test(f)||seen[f])return;
+    seen[f]=1;n++;
+    added.push(f+'#优选');
+  });
+  if(!added.length){st.className='qa-st er';st.textContent='未识别到新 IP';return;}
+  ta.value=(ta.value.trim()?ta.value.trim()+'\n':'')+added.join('\n');
+  updateBadge(ta.value);
+  V('cstInput').value='';
+  st.className='qa-st ok';st.textContent='✓ 导入 '+added.length+' 条';
+};
+
+function fillSel(sel,data,cur){
+  while(sel.options.length)sel.remove(0);
+  function add(p,l,v){var o=document.createElement('option');o.value=v;o.textContent=l;p.appendChild(o);}
+  (data||[]).forEach(function(it){if(it&&it.options){var g=document.createElement('optgroup');g.label=it.label;it.options.forEach(function(o){add(g,o.label,o.value);});sel.appendChild(g);}else if(it)add(sel,it.label,it.value);});
+  var c=document.createElement('option');c.value='__c';c.textContent='自定义…';sel.appendChild(c);
+  if(cur){sel.value=cur;if(sel.value!==cur)sel.value='__c';}else sel.value='';
+}
+function bindSel(selId,txtId){var s=V(selId),t=V(txtId),row=V(txtId+'row');s.onchange=function(){if(s.value==='__c'){row.style.display='';t.value='';t.focus();}else{t.value=s.value;row.style.display='none';}};}
+bindSel('apiSel','apiTxt');bindSel('cfgSel','cfgTxt');
+function loadSublist(){
+  fetch('/admin/sublist').then(function(r){return r.json()}).then(function(j){
+    fillSel(V('apiSel'),j.api,val('apiTxt'));fillSel(V('cfgSel'),j.config,val('cfgTxt'));
+    V('apiTxtrow').style.display=V('apiSel').value==='__c'?'':'none';
+    V('cfgTxtrow').style.display=V('cfgSel').value==='__c'?'':'none';
+  }).catch(function(){});
+}
+
+/* === 订阅链接行：填链接 / 复制 / 二维码 / 折叠 === */
+function buildSubLinks(){
+  var origin=location.origin;
+  Array.prototype.forEach.call(document.querySelectorAll('.sub-row'),function(row){
+    if(row.getAttribute('data-type')==='node')return;
+    row.querySelector('.sub-link').value=origin+'/sub'+(row.getAttribute('data-q')||'');
+  });
+  var nodeRow=document.querySelector('.sub-row[data-type="node"]');
+  if(nodeRow){
+    var inp=nodeRow.querySelector('.sub-link');inp.value='加载中…';
+    fetch('/sub?target=plain').then(function(r){return r.text()}).then(function(t){
+      var first=t.split('\n').map(function(s){return s.trim()}).filter(Boolean)[0]||'';
+      inp.value=first||'（暂无节点：请先填写 UUID / 域名 / 优选IP 并保存）';
+    }).catch(function(){inp.value='（节点获取失败）';});
+  }
+}
+function copyText(url,cb,btn){
+  if(!url||url.charAt(0)==='（'||url==='加载中…')return;
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(cb).catch(function(){window.prompt('复制链接：',url);});
+  else window.prompt('复制链接：',url);
+}
+Array.prototype.forEach.call(document.querySelectorAll('.sub-cp'),function(btn){
+  var orig=btn.textContent;
+  btn.onclick=function(){
+    var url=btn.closest('.sub-row').querySelector('.sub-link').value;
+    copyText(url,function(){btn.classList.add('copied');btn.textContent='✓ 已复制';setTimeout(function(){btn.classList.remove('copied');btn.textContent=orig;},1500);},btn);
+  };
+});
+function showQR(text,title){
+  var img=V('qrImg');V('qrTitle').textContent=title;V('qrUrl').textContent=text;
+  if(typeof qrcode==='undefined'){img.removeAttribute('src');V('qrUrl').textContent='二维码库未加载，请检查网络后重试。\n'+text;}
+  else{try{var qr=qrcode(0,'M');qr.addData(text);qr.make();img.src=qr.createDataURL(6,12);}catch(e){img.removeAttribute('src');V('qrUrl').textContent='链接过长，无法生成二维码。\n'+text;}}
+  V('qrMask').classList.add('show');
+}
+Array.prototype.forEach.call(document.querySelectorAll('.sub-qr'),function(btn){
+  btn.onclick=function(){
+    var row=btn.closest('.sub-row'),url=row.querySelector('.sub-link').value;
+    if(!url||url.charAt(0)==='（'||url==='加载中…')return;
+    showQR(url,row.querySelector('.sub-rl').textContent);
+  };
+});
+V('qrMask').onclick=function(e){if(e.target===this||e.target.classList.contains('qr-close'))this.classList.remove('show');};
+V('subFold').onclick=function(){var f=V('subList').classList.toggle('folded');this.textContent=f?'展开':'收起';};
+
+/* === 反代IP 扫描库（浏览器选国家）+ Worker 实测（B'：Worker→反代 完整 HTTPS 首字节）=== */
+/* 扫描库仍由浏览器直拉、选国家；测速改由 Worker 实测（POST /admin/pxtest），
+   量的是 Worker→反代 的真实链路延迟。分批游标 _pxCursor 只存内存，刷新即失效。 */
+var ALLJSON_URL='https://zip.cm.edu.kg/all.json'; // 反代扫描库（浏览器直拉，CORS 全开，不经过 Worker）
+var _pxData=[],_pxLoaded={},_pxRun=null,_allJson=null,_pxCursor=0;
+function createOpt(v,t){var o=document.createElement('option');o.value=v;o.textContent=t;return o}
+
+/* 拉取扫描库（整库只拉一次，存内存复用） */
+function loadAllJson(){
+  if(_allJson)return Promise.resolve(_allJson);
+  return fetch(ALLJSON_URL).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){_allJson=d;return d;});
+}
+
+function loadProxyCountries(){
+  var sel=V('pxCountry');
+  sel.options[0].textContent='加载中…';
+  loadAllJson().then(function(d){
+    while(sel.options.length)sel.remove(0);
+    var cmap=(d.list&&d.list.country)||{};
+    /* 单遍扫出每个国家的中文名/旗帜 */
+    var info={};
+    (d.data||[]).forEach(function(it){var m=it.meta;if(m&&m.country&&!info[m.country])info[m.country]={cn:m.country_cn||m.country,emoji:m.country_emoji||''};});
+    V('pxUpdated').textContent=((d.list&&d.list.ips)||0)+' IP · '+(d.generated_at||'').slice(0,10);
+    sel.appendChild(createOpt('','选择国家/地区…'));
+    Object.keys(cmap).map(function(code){return {code:code,count:cmap[code],cn:(info[code]||{}).cn||code,emoji:(info[code]||{}).emoji||''};})
+      .sort(function(a,b){return b.count-a.count;})
+      .forEach(function(c){sel.appendChild(createOpt(c.code,(c.emoji||'')+' '+c.cn+' ('+c.count+')'));});
+  }).catch(function(){sel.options[0].textContent='加载失败';});
+}
+
+/* --- 刷新：清缓存，重新拉取 all.json 并重建国家列表 --- */
+V('pxRefresh').onclick=function(){
+  _allJson=null;_pxLoaded={};_pxData=[];_pxCursor=0;stopPxTest();
+  V('pxCountry').value='';V('pxList').innerHTML='';V('pxList').classList.remove('show');
+  V('pxBar').style.display='none';V('pxCtrl').style.display='none';
+  V('pxUpdated').textContent='刷新中…';
+  loadProxyCountries();
+}
+
+/* === CF 使用统计 === */
+function fmtN(n){return typeof n==='number'?n.toLocaleString():'—';}
+function updateCfDisplay(d){
+  V('cfWorkers').textContent=fmtN(d.workers);
+  V('cfPages').textContent=fmtN(d.pages);
+  V('cfTotal').textContent=fmtN(d.total);
+  var pct=d.max>0?Math.min(100,(d.total/d.max)*100):0;
+  V('cfBarFill').style.width=pct.toFixed(1)+'%';
+  V('cfBarLabel').textContent=fmtN(d.total)+' / '+fmtN(d.max);
+  V('cfUpdated').textContent=d.success?'今日数据':'未配置或获取失败';
+}
+function fetchCfUsage(){
+  V('cfUpdated').textContent='加载中…';
+  fetch('/admin/cfusage').then(function(r){return r.json();}).then(updateCfDisplay).catch(function(){V('cfUpdated').textContent='加载失败';});
+}
+V('cfRefresh').onclick=fetchCfUsage;
+fetchCfUsage();;
+
+/* --- 选国家：列出该国全部反代 IP（CF 自有排前），延迟列待测；分批游标仅内存，刷新失效 --- */
+V('pxCountry').onchange=function(){
+  var code=this.value;
+  stopPxTest();_pxData=[];_pxCursor=0;
+  V('pxList').innerHTML='';V('pxList').classList.remove('show');V('pxBar').style.display='none';V('pxCtrl').style.display='none';
+  V('pxTest').textContent='⚡ 开始优选延迟';
+  if(!code)return;
+  function go(ips){
+    _pxData=ips;_pxCursor=0;
+    var nc=ips.filter(function(x){return x.cf;}).length;
+    V('pxCtrl').style.display='flex';V('pxBar').style.display='flex';
+    V('pxProg').textContent='共 '+ips.length+' 个'+(nc?'（含 '+nc+' 个 CF 自有，已排前）':'（无 CF 自有，仅第三方反代）')+'，每次测 '+pxBatchN()+' 个';
+    renderPxList(); // 选完即列出全部 IP，延迟列待测
+  }
+  if(_pxLoaded[code]){go(_pxLoaded[code]);return;}
+  V('pxLoading').style.display='block';
+  loadAllJson().then(function(d){
+    V('pxLoading').style.display='none';
+    var ips=[];
+    (d.data||[]).forEach(function(it){
+      var m=it.meta;
+      if(m&&m.country===code){
+        var cf=(m.asn===13335)||/cloudflare/i.test(m.asOrganization||'');
+        var pts=(it.port&&it.port.length)?it.port:[443];
+        ips.push({ip:it.ip,ports:pts,port:pts[0],colo:(m.colo&&m.colo.iata)||'',org:m.asOrganization||'',cf:cf,ipType:it.ip.indexOf(':')>=0?'ipv6':'ipv4',ms:undefined});
+      }
+    });
+    ips.sort(function(a,b){return (b.cf?1:0)-(a.cf?1:0);}); // CF 自有 IP 排到最前，优先测
+    _pxLoaded[code]=ips;go(ips);
+  }).catch(function(){V('pxLoading').style.display='none';V('pxCtrl').style.display='flex';V('pxProg').textContent='加载失败';});
+};
+
+/* --- 测速编排：取下一批 N 个 → POST /admin/pxtest 测网络 RTT → 就地回填延迟，游标前移 --- */
+V('pxTest').onclick=function(){startPxTest();};
+V('pxStop').onclick=function(){stopPxTest();};
+function pxBatchN(){var n=parseInt(V('pxBatch').value,10);if(!(n>=1))n=10;if(n>20)n=20;return n;}
+function aliveCount(){return _pxData.filter(function(d){return d.ms>0;}).length;}
+function startPxTest(){
+  if(!_pxData.length||_pxRun)return;
+  var total=_pxData.length;
+  if(_pxCursor>=total){V('pxProg').textContent='已全部测完 '+total+'/'+total;return;}
+  var N=pxBatchN(),start=_pxCursor,batch=_pxData.slice(start,start+N);
+  _pxCursor+=batch.length; // 立即前移：下次从未测过的继续
+  var ctrl=new AbortController();_pxRun=ctrl;
+  V('pxList').classList.add('show');V('pxBar').style.display='flex';
+  V('pxTest').style.display='none';V('pxStop').style.display='';
+  V('pxProg').textContent='测试中… 已测 '+_pxCursor+'/'+total+' · 存活 '+aliveCount();
+  fetch('/admin/pxtest',{method:'POST',headers:{'Content-Type':'application/json'},signal:ctrl.signal,
+    body:JSON.stringify({targets:(function(){var t=[];batch.forEach(function(b){b.ports.forEach(function(p){t.push({ip:b.ip,port:p});});});return t;})()})})
+    .then(function(r){return r.json();})
+    .then(function(j){
+      var imap={};(j.results||[]).forEach(function(res){if(!res)return;if(!imap[res.ip])imap[res.ip]={};imap[res.ip][res.port]=res.ms;});
+      for(var i=start;i<start+batch.length&&i<total;i++){
+        var d=_pxData[i],pm=imap[d.ip]||{},bMs=-1,bPt=d.ports[0];
+        d.ports.forEach(function(p){var ms=pm[p];if(ms===undefined)return;if(ms>0&&(bMs<0||ms<bMs)){bMs=ms;bPt=p;}});
+        d.ms=bMs;d.port=bPt;
+      }
+      renderPxList();finishBatch(total);
+    })
+    .catch(function(e){if(ctrl.signal.aborted)return;V('pxProg').textContent='实测失败：'+(e&&e.message||e);finishBatch(total);});
+}
+function finishBatch(total){
+  _pxRun=null;
+  V('pxStop').style.display='none';V('pxTest').style.display='';
+  var more=_pxCursor<total;
+  V('pxTest').textContent=more?('⚡ 继续测下 '+pxBatchN()+' 个'):'✓ 已测完，重选地区可重测';
+  V('pxProg').textContent=(more?'已测 ':'全部完成 ')+_pxCursor+'/'+total+' · 存活 '+aliveCount();
+}
+function stopPxTest(){
+  if(_pxRun){try{_pxRun.abort();}catch(e){}_pxRun=null;}
+  V('pxStop').style.display='none';V('pxTest').style.display='';
+}
+
+/* 测试顺序按 CF 优先（_pxData 固定）；显示则按延迟重排：存活(升序)→待测→超时 */
+function pxGroup(r){return r.ms>0?0:(r.ms===undefined?1:2);}
+function renderPxList(){
+  var rows=_pxData.map(function(r,i){return{r:r,i:i};});
+  rows.sort(function(a,b){
+    var ga=pxGroup(a.r),gb=pxGroup(b.r);
+    if(ga!==gb)return ga-gb;          // 存活在最上，超时沉底
+    if(ga===0)return a.r.ms-b.r.ms;   // 存活组按延迟从快到慢
+    return a.i-b.i;                    // 其余保持原始(CF 优先)顺序
+  });
+  var html='';
+  rows.forEach(function(x){
+    var r=x.r,i=x.i,lat;
+    if(r.ms===undefined)lat='<span class="px-ms">待测</span>';
+    else if(r.ms<0)lat='<span class="px-ms slow">超时</span>';
+    else{var cls=r.ms<120?'fast':(r.ms<250?'mid':'slow');lat='<span class="px-ms '+cls+'">'+r.ms+'ms</span>';}
+    var fam=r.ipType==='ipv6'?'<span class="px-fam v6">v6</span>':'<span class="px-fam v4">v4</span>';
+    var cf=r.cf?'<span class="px-fam v4">CF自有</span>':'';
+    var src=(r.colo||'')+(r.org?(r.colo?' · ':'')+r.org:'');
+    var ipDisp=(r.ms===undefined&&r.ports.length>1)?r.ip+':'+r.ports.join('/'):r.ip+':'+r.port;
+    html+='<label class="px-item"><input type="checkbox" value="'+i+'" class="px-cb">'
+      +lat
+      +'<span class="px-ip">'+ipDisp+'</span>'+fam+cf
+      +'<span class="px-colo">'+src+'</span></label>';
+  });
+  V('pxList').innerHTML=html;updatePxCount();
+}
+function updatePxCount(){var n=V('pxList').querySelectorAll('.px-cb:checked').length;V('pxSelCount').textContent='已选 '+n+' / 存活 '+aliveCount();}
+V('pxList').addEventListener('change',function(e){if(e.target.classList&&e.target.classList.contains('px-cb'))updatePxCount();});
+
+V('pxAddSel').onclick=function(){
+  var cbs=V('pxList').querySelectorAll('.px-cb:checked'),picked=[];
+  cbs.forEach(function(cb){var d=_pxData[parseInt(cb.value)];if(d)picked.push(d.ip+':'+d.port);});
+  if(!picked.length)return;
+  var inp=V('proxyip'),cur=inp.value.trim();
+  inp.value=(cur?cur+', ':'')+picked.join(', ');
+};
+V('pxAddAll').onclick=function(){
+  var all=_pxData.filter(function(d){return d.ms>0;}).map(function(d){return d.ip+':'+d.port;});
+  if(!all.length)return;
+  var inp=V('proxyip'),cur=inp.value.trim();
+  inp.value=(cur?cur+', ':'')+all.join(', ');
+};
+loadProxyCountries();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+</body></html>
