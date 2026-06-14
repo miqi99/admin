@@ -54,15 +54,6 @@ a{color:inherit;text-decoration:none}
 .hero{padding:24px 4px 8px}
 .hero-t{font-size:46px;font-weight:800;letter-spacing:-.025em;line-height:1.06;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
 .hero-sub{margin-top:14px;font-size:16px;color:var(--muted);max-width:600px}
-.stat-row{display:flex;flex-wrap:wrap;gap:14px;margin-top:26px}
-.stat-pill{display:inline-flex;align-items:center;gap:12px;padding:11px 22px 11px 11px;border-radius:999px;background:#fff;border:1px solid var(--border);box-shadow:0 6px 18px rgba(99,102,241,.1)}
-.stat-pill .chip{width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
-.chip.c1{background:linear-gradient(135deg,#dbeafe,#ede9fe)}
-.chip.c2{background:linear-gradient(135deg,#ede9fe,#fae8ff)}
-.chip.c3{background:linear-gradient(135deg,#dcfce7,#d1fae5)}
-.sp-tx{display:flex;flex-direction:column;line-height:1.3;min-width:0}
-.sp-tx i{font-style:normal;font-size:12.5px;color:var(--muted)}
-.sp-tx b{font-size:15px;color:var(--ink);max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* ===== cards ===== */
 .card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
@@ -126,7 +117,7 @@ a{color:inherit;text-decoration:none}
 .cst-ta::placeholder{color:#aab2c6}
 
 /* ===== subscription link rows ===== */
-.sub-fold{margin-left:auto;width:34px;height:34px;border-radius:10px;border:1px solid var(--border);background:#fff;color:var(--muted);font-size:14px;cursor:pointer;font-family:inherit;transition:background .15s,transform .2s;flex-shrink:0}
+.sub-fold{margin-left:auto;padding:7px 16px;border-radius:10px;border:1px solid var(--border);background:#fff;color:var(--ink-2);font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit;transition:background .15s;flex-shrink:0}
 .sub-fold:hover{background:var(--soft)}
 .sub-list.folded{display:none}
 .sub-row{display:flex;align-items:center;gap:13px;padding:14px var(--pad-x);border-bottom:1px solid var(--line)}
@@ -184,8 +175,6 @@ a{color:inherit;text-decoration:none}
   .hero{padding:12px 2px 4px}
   .hero-t{font-size:33px}
   .hero-sub{font-size:14.5px}
-  .stat-pill{width:100%}
-  .sp-tx b{max-width:none}
   .card-h,.ip-head .t{font-size:15.5px}
   .field{gap:12px}
   .field>label{width:74px;font-size:14px}
@@ -227,17 +216,12 @@ a{color:inherit;text-decoration:none}
   <div class="hero">
     <h1 class="hero-t">CloudFlare · Ai</h1>
     <p class="hero-sub">全球边缘计算 · 优化网络与负载均衡 · 全自动化管理</p>
-    <div class="stat-row">
-      <span class="stat-pill"><span class="chip c1">🌐</span><span class="sp-tx"><i>当前域名</i><b id="stat-hostTag">…</b></span></span>
-      <span class="stat-pill"><span class="chip c2">📶</span><span class="sp-tx"><i>运营商</i><b id="stat-ispTag">…</b></span></span>
-      <span class="stat-pill"><span class="chip c3">🚀</span><span class="sp-tx"><i>优选来源</i><b id="stat-ipCountBadge">…</b></span></span>
-    </div>
   </div>
 
   <!-- ===== 获取节点链接 ===== -->
   <div class="card">
-    <div class="card-h"><span class="ico">📋</span>获取节点链接<button type="button" class="sub-fold" id="subFold" title="折叠/展开">▾</button></div>
-    <div class="sub-list" id="subList">
+    <div class="card-h"><span class="ico">📋</span>获取节点链接<button type="button" class="sub-fold" id="subFold">展开</button></div>
+    <div class="sub-list folded" id="subList">
       <div class="sub-row" data-type="node">
         <span class="sub-rl">节点链接格式</span>
         <input class="sub-link" readonly value="加载中…">
@@ -537,7 +521,7 @@ Array.prototype.forEach.call(document.querySelectorAll('.sub-qr'),function(btn){
   };
 });
 V('qrMask').onclick=function(e){if(e.target===this||e.target.classList.contains('qr-close'))this.classList.remove('show');};
-V('subFold').onclick=function(){var l=V('subList').classList.toggle('folded');this.style.transform=l?'rotate(-90deg)':'';};
+V('subFold').onclick=function(){var f=V('subList').classList.toggle('folded');this.textContent=f?'展开':'收起';};
 
 /* === 反代IP 扫描库 + 浏览器测速 === */
 /* 泛解析+泛证书域名：把 IP 编码进子域名即解析到该 IP，且有合法 HTTPS 证书，
@@ -680,18 +664,6 @@ V('pxAddAll').onclick=function(){
   inp.value=(cur?cur+', ':'')+all.join(', ');
 };
 loadProxyCountries();
-</script>
-<script>
-/* ===== 概览状态镜像（附加层，不触及上面的业务逻辑） ===== */
-(function(){
-  ['ispTag','hostTag','ipCountBadge'].forEach(function(id){
-    var src=document.getElementById(id),dst=document.getElementById('stat-'+id);
-    if(!src||!dst)return;
-    var sync=function(){dst.textContent=src.textContent||'…';};
-    new MutationObserver(sync).observe(src,{childList:true,characterData:true,subtree:true});
-    sync();
-  });
-})();
 </script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
 </body></html>
