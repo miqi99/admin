@@ -1,0 +1,697 @@
+<!DOCTYPE html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>管理面板</title>
+<style>
+:root{
+  --bg:#fbfcff;--panel:#ffffff;--soft:#f5f7fc;
+  --border:#e6eaf4;--line:#eef1f8;
+  --ink:#1b2030;--ink-2:#39405a;--muted:#6c7389;--muted-2:#9aa0b4;
+  --blue:#3b82f6;--blue-d:#2563eb;--purple:#8b5cf6;--purple-d:#7c3aed;--indigo:#6d5cf5;
+  --grad:linear-gradient(120deg,#4f7cff 0%,#7c5cff 52%,#b54df5 100%);
+  --green:#0f9f6e;--red:#dc2626;--amber:#d97706;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+  /* spacing system — 统一边距 */
+  --gap:22px;      /* 卡片之间 */
+  --pad-x:26px;    /* 卡片左右内边距（所有行统一） */
+  --pad-y:18px;    /* 卡片行上下内边距 */
+  --radius:18px;
+  --shadow:0 10px 34px rgba(99,102,241,.1),0 2px 6px rgba(16,24,40,.04);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","Helvetica Neue","PingFang SC","Microsoft YaHei",sans-serif;
+  color:var(--ink);font-size:15.5px;line-height:1.6;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;min-height:100vh;
+  background:
+    radial-gradient(900px 480px at 100% -6%,rgba(168,85,247,.1),transparent 55%),
+    radial-gradient(820px 440px at -4% -4%,rgba(59,130,246,.09),transparent 50%),
+    var(--bg);
+  background-attachment:fixed;
+}
+::-webkit-scrollbar{width:11px;height:11px}
+::-webkit-scrollbar-thumb{background:rgba(124,92,255,.22);border-radius:999px;border:3px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-thumb:hover{background:rgba(124,92,255,.36);background-clip:content-box}
+a{color:inherit;text-decoration:none}
+
+/* ===== top bar（无菜单，仅品牌 + 状态 + 保存） ===== */
+.nav{position:sticky;top:0;z-index:30;background:rgba(255,255,255,.8);backdrop-filter:saturate(180%) blur(18px);border-bottom:1px solid var(--border)}
+.nav-in{max-width:1080px;margin:0 auto;display:flex;align-items:center;gap:12px;padding:0 var(--pad-x);height:70px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:11px;flex-shrink:0}
+.brand .logo{width:38px;height:38px;border-radius:11px;background:var(--grad);display:flex;align-items:center;justify-content:center;font-size:19px;box-shadow:0 6px 18px rgba(124,92,255,.42)}
+.brand b{font-size:19px;font-weight:800;letter-spacing:-.01em;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.sp{flex:1;min-width:8px}
+.pill{font-size:13px;padding:6px 13px;border-radius:999px;font-weight:600;white-space:nowrap}
+.pill-i{background:rgba(59,130,246,.1);color:var(--blue-d);border:1px solid rgba(59,130,246,.18)}
+.pill-h{background:#f1f3fa;color:var(--ink-2);max-width:230px;overflow:hidden;text-overflow:ellipsis;border:1px solid var(--border)}
+.saved{font-size:14px;color:var(--green);font-weight:600}
+.btn{padding:12px 28px;border-radius:999px;background:var(--grad);color:#fff;border:none;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;box-shadow:0 8px 22px rgba(124,92,255,.4);transition:filter .15s,transform .06s,box-shadow .15s}
+.btn:hover{filter:brightness(1.06);box-shadow:0 10px 28px rgba(124,92,255,.52)}
+.btn:active{transform:translateY(1px)}
+.btn:disabled{filter:grayscale(.35) opacity(.6);cursor:not-allowed;box-shadow:none}
+
+/* ===== single-page layout ===== */
+.wrap{max-width:1080px;margin:0 auto;padding:var(--gap) var(--pad-x) 72px;display:flex;flex-direction:column;gap:var(--gap)}
+
+/* ===== hero ===== */
+.hero{padding:24px 4px 8px}
+.hero-t{font-size:46px;font-weight:800;letter-spacing:-.025em;line-height:1.06;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero-sub{margin-top:14px;font-size:16px;color:var(--muted);max-width:600px}
+.stat-row{display:flex;flex-wrap:wrap;gap:14px;margin-top:26px}
+.stat-pill{display:inline-flex;align-items:center;gap:12px;padding:11px 22px 11px 11px;border-radius:999px;background:#fff;border:1px solid var(--border);box-shadow:0 6px 18px rgba(99,102,241,.1)}
+.stat-pill .chip{width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.chip.c1{background:linear-gradient(135deg,#dbeafe,#ede9fe)}
+.chip.c2{background:linear-gradient(135deg,#ede9fe,#fae8ff)}
+.chip.c3{background:linear-gradient(135deg,#dcfce7,#d1fae5)}
+.sp-tx{display:flex;flex-direction:column;line-height:1.3;min-width:0}
+.sp-tx i{font-style:normal;font-size:12.5px;color:var(--muted)}
+.sp-tx b{font-size:15px;color:var(--ink);max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ===== cards ===== */
+.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.card-h{display:flex;align-items:center;gap:10px;font-size:16.5px;font-weight:700;padding:var(--pad-y) var(--pad-x);border-bottom:1px solid var(--line)}
+.card-h .ico{font-size:18px}
+.card-sub{font-size:13px;color:var(--muted);font-weight:500;margin-left:auto}
+
+/* ===== field rows（盒式输入框） ===== */
+.field{display:flex;align-items:center;gap:18px;padding:14px var(--pad-x);border-bottom:1px solid var(--line)}
+.field:last-child{border-bottom:none}
+.field>label{font-size:14.5px;color:var(--ink-2);width:92px;flex-shrink:0;font-weight:600}
+.field input,.field select{flex:1;min-width:0;background:var(--soft);border:1px solid var(--border);border-radius:12px;padding:11px 15px;font-size:15px;color:var(--ink);outline:none;font-family:inherit;transition:border-color .15s,box-shadow .15s,background .15s}
+.field input::placeholder{color:#b6bdce}
+.field input:focus,.field select:focus{border-color:var(--purple);background:#fff;box-shadow:0 0 0 4px rgba(124,92,255,.12)}
+.field select{-webkit-appearance:none;appearance:none;cursor:pointer;padding-right:34px;background-image:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='14' viewBox='0 0 10 14'><path d='M2 5l3 3 3-3' stroke='%236c7389' stroke-width='1.6' fill='none' stroke-linecap='round'/></svg>");background-repeat:no-repeat;background-position:right 13px center}
+.field.sub label{color:var(--muted-2);font-style:italic;font-weight:500}
+
+/* ===== checkboxes ===== */
+.checks{display:flex;flex-wrap:wrap;gap:12px 26px;padding:18px var(--pad-x)}
+.ck{display:flex;align-items:center;gap:9px;cursor:pointer}
+.ck input{width:18px;height:18px;accent-color:var(--purple);cursor:pointer}
+.ck span{font-size:14.5px;color:var(--ink-2);font-weight:500}
+
+/* ===== unified IP list ===== */
+.ip-head{display:flex;align-items:center;justify-content:space-between;padding:var(--pad-y) var(--pad-x);border-bottom:1px solid var(--line)}
+.ip-head .t{font-size:16.5px;font-weight:700}
+.badge{font-size:12.5px;background:rgba(124,92,255,.12);color:var(--indigo);padding:4px 12px;border-radius:999px;font-weight:600;border:1px solid rgba(124,92,255,.2)}
+.ip-ta{width:100%;min-height:230px;border:none;padding:16px var(--pad-x);font-family:var(--mono);font-size:13.5px;color:#5b4bd6;background:var(--soft);resize:vertical;outline:none;line-height:2;display:block}
+.ip-ta::placeholder{color:#aab2c6}
+.ip-hint{font-size:13px;color:var(--muted);padding:13px var(--pad-x);border-top:1px solid var(--line);line-height:1.75}
+.ip-hint code{background:#eef1f8;padding:2px 7px;border-radius:6px;font-family:var(--mono);font-size:12px;color:var(--ink-2)}
+
+/* ===== quick-add API bar ===== */
+.qa-field{display:flex;align-items:center;gap:14px;padding:16px var(--pad-x);border-top:1px solid var(--line);flex-wrap:wrap}
+.qa-field.top{align-items:flex-start}
+.qa-flabel{width:96px;flex-shrink:0;font-size:14.5px;color:var(--ink-2);font-weight:600;line-height:1.4}
+.qa-field.top .qa-flabel{padding-top:11px}
+.qa-field .cst-ta{flex:1;min-width:0}
+.qa-u{flex:1;min-width:200px;background:var(--soft);border:1px solid var(--border);border-radius:12px;padding:11px 15px;font-size:14.5px;outline:none;font-family:inherit;color:var(--ink);transition:border-color .15s,box-shadow .15s,background .15s}
+.qa-p{width:66px;background:var(--soft);border:1px solid var(--border);border-radius:12px;padding:11px;font-size:14.5px;text-align:center;outline:none;font-family:inherit;flex-shrink:0;color:var(--ink);transition:border-color .15s,box-shadow .15s,background .15s}
+.qa-u:focus,.qa-p:focus{border-color:var(--purple);background:#fff;box-shadow:0 0 0 4px rgba(124,92,255,.12)}
+.qa-u::placeholder{color:#b6bdce}
+.btn-2,.qa-b{padding:11px 19px;border-radius:12px;background:#fff;color:var(--blue-d);border:1px solid rgba(59,130,246,.32);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;box-shadow:0 2px 8px rgba(99,102,241,.07);transition:background .15s,border-color .15s,transform .06s,box-shadow .15s}
+.btn-2:hover,.qa-b:hover{background:rgba(59,130,246,.08);box-shadow:0 4px 14px rgba(99,102,241,.13)}
+.btn-2:active,.qa-b:active{transform:translateY(1px)}
+.qa-b:disabled{opacity:.5;cursor:not-allowed;box-shadow:none}
+.qa-st{font-size:13px;min-height:18px;flex-shrink:0}.qa-st.ok{color:var(--green)}.qa-st.er{color:var(--red)}
+.qa-acts{display:none;gap:11px;padding:0 var(--pad-x) 14px}
+.qa-acts.show{display:flex}
+.qa-ab{flex:1;padding:11px;border-radius:12px;border:1px solid;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;background:#fff;transition:background .15s}
+.qa-ab.add-ip{color:var(--blue-d);border-color:rgba(59,130,246,.32)}.qa-ab.add-ip:hover{background:rgba(59,130,246,.08)}
+.qa-ab.add-api{color:var(--green);border-color:rgba(15,159,110,.32)}.qa-ab.add-api:hover{background:rgba(15,159,110,.08)}
+.qa-preview{margin:0 var(--pad-x) 16px;border:1px solid var(--border);border-radius:13px;background:var(--soft);font-size:13.5px;font-family:var(--mono);max-height:170px;overflow-y:auto;display:none}
+.qa-preview.show{display:block}
+.qa-pv-item{padding:9px 15px;border-bottom:1px solid var(--line);color:#5b4bd6;word-break:break-all}
+.qa-pv-item:last-child{border-bottom:none}
+
+/* ===== CFST import ===== */
+.cst-ta{width:100%;min-height:96px;background:var(--soft);border:1px solid var(--border);border-radius:12px;padding:13px;font-family:var(--mono);font-size:13px;color:#5b4bd6;outline:none;resize:vertical;transition:border-color .15s,box-shadow .15s,background .15s}
+.cst-ta:focus{border-color:var(--purple);background:#fff;box-shadow:0 0 0 4px rgba(124,92,255,.12)}
+.cst-ta::placeholder{color:#aab2c6}
+
+/* ===== subscription link rows ===== */
+.sub-fold{margin-left:auto;width:34px;height:34px;border-radius:10px;border:1px solid var(--border);background:#fff;color:var(--muted);font-size:14px;cursor:pointer;font-family:inherit;transition:background .15s,transform .2s;flex-shrink:0}
+.sub-fold:hover{background:var(--soft)}
+.sub-list.folded{display:none}
+.sub-row{display:flex;align-items:center;gap:13px;padding:14px var(--pad-x);border-bottom:1px solid var(--line)}
+.sub-row:last-child{border-bottom:none}
+.sub-rl{width:104px;flex-shrink:0;font-size:14.5px;color:var(--ink-2);font-weight:600}
+.sub-link{flex:1;min-width:0;background:var(--soft);border:1px solid var(--border);border-radius:12px;padding:11px 15px;font-size:13px;font-family:var(--mono);color:#5b4bd6;outline:none;text-overflow:ellipsis;transition:border-color .15s,box-shadow .15s,background .15s}
+.sub-link:focus{border-color:var(--purple);background:#fff;box-shadow:0 0 0 4px rgba(124,92,255,.12)}
+.sub-btns{display:contents}
+.sub-qr,.sub-cp{padding:11px 18px;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;border:1px solid;transition:filter .15s,background .15s,transform .06s,box-shadow .15s}
+.sub-qr{background:#fff;color:var(--blue-d);border-color:rgba(59,130,246,.32);box-shadow:0 2px 8px rgba(99,102,241,.07)}
+.sub-qr:hover{background:rgba(59,130,246,.08)}
+.sub-cp{background:var(--grad);color:#fff;border-color:transparent;box-shadow:0 6px 16px rgba(124,92,255,.3)}
+.sub-cp:hover{filter:brightness(1.06)}
+.sub-qr:active,.sub-cp:active{transform:translateY(1px)}
+.sub-cp.copied{background:linear-gradient(135deg,#10b981,#059669);filter:none}
+/* QR modal */
+.qr-mask{position:fixed;inset:0;background:rgba(20,22,40,.5);backdrop-filter:blur(5px);display:none;align-items:center;justify-content:center;z-index:60;padding:20px}
+.qr-mask.show{display:flex}
+.qr-card{background:#fff;border-radius:20px;padding:26px;max-width:330px;width:100%;text-align:center;box-shadow:0 24px 70px rgba(16,24,40,.35)}
+.qr-card h4{font-size:16.5px;font-weight:700;color:var(--ink);margin-bottom:18px}
+.qr-img{width:228px;height:228px;margin:0 auto;display:block;border-radius:12px;image-rendering:pixelated;background:var(--soft)}
+.qr-url{margin-top:14px;font-size:12px;color:var(--muted);font-family:var(--mono);word-break:break-all;max-height:64px;overflow:auto;line-height:1.6}
+.qr-close{margin-top:18px;width:100%;padding:12px;border-radius:12px;border:none;background:var(--grad);color:#fff;font-weight:600;cursor:pointer;font-family:inherit;font-size:14.5px}
+
+/* ===== proxyip picker ===== */
+.px-list{max-height:320px;overflow-y:auto;padding:0 var(--pad-x);display:none}
+.px-list.show{display:block}
+.px-item{display:flex;align-items:center;gap:11px;padding:10px 0;border-bottom:1px solid var(--line);cursor:pointer;font-size:14px}
+.px-item:hover{background:var(--soft)}
+.px-item:last-child{border-bottom:none}
+.px-item input{width:16px;height:16px;accent-color:var(--purple);cursor:pointer;flex-shrink:0}
+.px-item .px-ip{font-family:var(--mono);font-size:13px;color:#5b4bd6;flex:1}
+.px-item .px-colo{font-size:12px;background:#f1f3fa;padding:3px 9px;border-radius:6px;color:var(--muted);flex-shrink:0}
+.px-loading{text-align:center;padding:24px;color:var(--muted);font-size:14px}
+.px-bar{display:flex;align-items:center;gap:11px;padding:16px var(--pad-x);border-top:1px solid var(--line)}
+.px-ctrl{display:flex;align-items:center;gap:13px;padding:16px var(--pad-x);border-top:1px solid var(--line);flex-wrap:wrap}
+.px-prog{font-size:13px;color:var(--muted)}
+.px-item .px-ms{font-family:var(--mono);font-size:13px;font-weight:700;flex-shrink:0;width:62px}
+.px-ms.fast{color:#0f9f6e}.px-ms.mid{color:#d97706}.px-ms.slow{color:#dc2626}
+.px-item .px-fam{font-size:12px;padding:3px 9px;border-radius:6px;flex-shrink:0;font-weight:600}
+.px-fam.v4{background:#dcfce7;color:#15803d}.px-fam.v6{background:#dbeafe;color:#1d4ed8}
+.px-hint{font-size:13px;color:var(--muted);padding:14px var(--pad-x);border-top:1px solid var(--line);line-height:1.75}
+.px-hint b{color:var(--ink-2)}
+
+/* ===== responsive ===== */
+/* 平板 / 小笔记本：略收内边距 */
+@media(max-width:980px){
+  :root{--pad-x:22px}
+}
+/* 手机：头部精简（状态已在 hero 卡片展示）、字号与间距收紧 */
+@media(max-width:720px){
+  .nav-in{height:auto;padding:12px 16px;gap:10px}
+  .nav .pill-i,.nav .pill-h{display:none}
+  .wrap{padding:16px 16px 52px}
+  .hero{padding:12px 2px 4px}
+  .hero-t{font-size:33px}
+  .hero-sub{font-size:14.5px}
+  .stat-pill{width:100%}
+  .sp-tx b{max-width:none}
+  .card-h,.ip-head .t{font-size:15.5px}
+  .field{gap:12px}
+  .field>label{width:74px;font-size:14px}
+  /* 订阅行竖排：标题在上、链接整行、两个按钮并排 */
+  .sub-row{flex-direction:column;align-items:stretch;gap:10px}
+  .sub-rl{width:auto;color:var(--ink);font-size:15px}
+  .sub-btns{display:flex;gap:10px}
+  .sub-btns .sub-qr,.sub-btns .sub-cp{flex:1;text-align:center}
+  /* 工具行控件多，提前竖排：标题在上，输入/按钮各占一行 */
+  .qa-field,.qa-field.top{flex-direction:column;align-items:stretch;gap:10px}
+  .qa-field .qa-flabel,.qa-field.top .qa-flabel{width:auto;padding-top:0;color:var(--ink);font-size:15px}
+  .qa-field .qa-u,.qa-field .qa-p{min-width:0;width:100%}
+  .qa-field .qa-st{order:1}
+  .qa-field .qa-b{width:100%}
+}
+/* 窄屏手机：字段标题上、输入框下，避免挤压 */
+@media(max-width:460px){
+  .nav-in{flex-wrap:nowrap}
+  .brand b{font-size:17px}
+  .btn{padding:11px 20px}
+  .field{flex-direction:column;align-items:stretch;gap:8px}
+  .field>label{width:auto}
+}
+</style></head><body>
+<header class="nav">
+  <div class="nav-in">
+    <div class="brand"><div class="logo">⚡</div><b>米奇VPN</b></div>
+    <div class="sp"></div>
+    <span class="pill pill-i" id="ispTag">…</span>
+    <span class="pill pill-h" id="hostTag">…</span>
+    <span class="saved" id="savedMsg"></span>
+    <button class="btn" id="saveBtn">保存配置</button>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- ===== 顶部 hero ===== -->
+  <div class="hero">
+    <h1 class="hero-t">CloudFlare · Ai</h1>
+    <p class="hero-sub">全球边缘计算 · 优化网络与负载均衡 · 全自动化管理</p>
+    <div class="stat-row">
+      <span class="stat-pill"><span class="chip c1">🌐</span><span class="sp-tx"><i>当前域名</i><b id="stat-hostTag">…</b></span></span>
+      <span class="stat-pill"><span class="chip c2">📶</span><span class="sp-tx"><i>运营商</i><b id="stat-ispTag">…</b></span></span>
+      <span class="stat-pill"><span class="chip c3">🚀</span><span class="sp-tx"><i>优选来源</i><b id="stat-ipCountBadge">…</b></span></span>
+    </div>
+  </div>
+
+  <!-- ===== 获取节点链接 ===== -->
+  <div class="card">
+    <div class="card-h"><span class="ico">📋</span>获取节点链接<button type="button" class="sub-fold" id="subFold" title="折叠/展开">▾</button></div>
+    <div class="sub-list" id="subList">
+      <div class="sub-row" data-type="node">
+        <span class="sub-rl">节点链接格式</span>
+        <input class="sub-link" readonly value="加载中…">
+        <div class="sub-btns"><button type="button" class="sub-qr">▦ 二维码</button><button type="button" class="sub-cp">复制节点</button></div>
+      </div>
+      <div class="sub-row" data-q="">
+        <span class="sub-rl">自适应订阅</span>
+        <input class="sub-link" readonly>
+        <div class="sub-btns"><button type="button" class="sub-qr">▦ 二维码</button><button type="button" class="sub-cp">复制订阅</button></div>
+      </div>
+      <div class="sub-row" data-q="?base64">
+        <span class="sub-rl">Base64订阅</span>
+        <input class="sub-link" readonly>
+        <div class="sub-btns"><button type="button" class="sub-qr">▦ 二维码</button><button type="button" class="sub-cp">复制订阅</button></div>
+      </div>
+      <div class="sub-row" data-q="?target=clash">
+        <span class="sub-rl">Clash订阅</span>
+        <input class="sub-link" readonly>
+        <div class="sub-btns"><button type="button" class="sub-qr">▦ 二维码</button><button type="button" class="sub-cp">复制订阅</button></div>
+      </div>
+      <div class="sub-row" data-q="?target=singbox">
+        <span class="sub-rl">SingBox订阅</span>
+        <input class="sub-link" readonly>
+        <div class="sub-btns"><button type="button" class="sub-qr">▦ 二维码</button><button type="button" class="sub-cp">复制订阅</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 优选列表 ===== -->
+  <div class="card">
+    <div class="ip-head">
+      <span class="t">优选列表</span>
+      <span class="badge" id="ipCountBadge">自动</span>
+    </div>
+    <textarea class="ip-ta" id="ipList" placeholder="每行一个条目，支持以下格式：&#10;&#10;IP:端口#备注 — 静态优选 IP&#10;api:URL:端口 — 实时 API，订阅时自动拉取&#10;&#10;不填端口时 默认使用443&#10;留空则自动生成优选 IP"></textarea>
+    <div class="ip-hint">
+      格式示例：<code>1.2.3.4:443#电信优选</code> &nbsp; <code>api:https://api.example.com/ip:443</code> &nbsp; <code>api:https://api.example.com/ip</code>
+    </div>
+    <div class="qa-field">
+      <label class="qa-flabel">快捷添加 API</label>
+      <input id="qaUrl" class="qa-u" placeholder="优选 API URL（https://...）">
+      <input id="qaPort" class="qa-p" value="443">
+      <span class="qa-st" id="qaSt"></span>
+      <button type="button" class="qa-b" id="qaBtn">获取并预览</button>
+    </div>
+    <div class="qa-acts" id="qaActs">
+      <button type="button" class="qa-ab add-ip" id="qaAddIp">追加 IP</button>
+      <button type="button" class="qa-ab add-api" id="qaAddApi">追加为 API 源</button>
+    </div>
+    <div class="qa-preview" id="qaPreview"></div>
+    <!-- CloudflareSpeedTest 导入 -->
+    <div class="qa-field top">
+      <label class="qa-flabel">导入测速结果</label>
+      <textarea id="cstInput" class="cst-ta" placeholder="粘贴你在CloudflareSpeedTest工具的result.csv内容，随后会按【IP#优选】格式追加到优选列表"></textarea>
+      <span class="qa-st" id="cstSt"></span>
+      <button type="button" class="qa-b" id="cstBtn">导入优选IP</button>
+    </div>
+  </div>
+
+  <!-- ===== 核心配置（独占一行） ===== -->
+  <div class="card">
+    <div class="card-h"><span class="ico">🔑</span>核心配置</div>
+    <div class="field"><label>UUID</label><input id="uuid" placeholder="必填"></div>
+    <div class="field"><label>域名</label><input id="host" placeholder="your.domain.com"></div>
+    <div class="field"><label>反代IP</label><input id="proxyip" placeholder="域名 或 IP:端口，多个逗号分隔"></div>
+    <div class="field"><label>ECH SNI</label><input id="echSni" placeholder="可选"></div>
+    <div class="field"><label>ECH DNS</label><input id="echDns" placeholder="可选"></div>
+  </div>
+
+  <!-- ===== 订阅设置（独占一行） ===== -->
+  <div class="card">
+    <div class="card-h"><span class="ico">📡</span>订阅设置</div>
+    <div class="field"><label>节点名称</label><input id="subName" placeholder="节点名称"></div>
+    <div class="field"><label>WS 路径</label><input id="wsPath" placeholder="/ws"></div>
+    <div class="field"><label>TLS 指纹</label><select id="fingerprint"><option value="chrome">Chrome</option><option value="firefox">Firefox</option><option value="safari">Safari</option><option value="random">随机</option></select></div>
+    <div class="field"><label>生成数量</label><input id="ipCount" type="number" min="1" max="100"></div>
+    <div class="field"><label>转换后端</label><select id="apiSel"></select></div>
+    <div class="field sub" id="apiTxtrow" style="display:none"><label>自定义</label><input id="apiTxt" placeholder="https://后端地址"></div>
+    <div class="field"><label>规则配置</label><select id="cfgSel"></select></div>
+    <div class="field sub" id="cfgTxtrow" style="display:none"><label>自定义</label><input id="cfgTxt" placeholder="规则 ini 的 URL"></div>
+    <div class="checks">
+      <label class="ck"><input type="checkbox" id="enable0rtt"><span>0-RTT</span></label>
+      <label class="ck"><input type="checkbox" id="skipCert"><span>跳过证书</span></label>
+      <label class="ck"><input type="checkbox" id="randomPort"><span>随机端口</span></label>
+      <label class="ck"><input type="checkbox" id="subEmoji"><span>Emoji</span></label>
+    </div>
+  </div>
+
+  <!-- ===== 反代测速 ===== -->
+  <div class="card">
+    <div class="ip-head">
+      <span class="t">🌍 反代测速</span>
+      <span class="badge" id="pxUpdated">…</span>
+    </div>
+    <div class="field">
+      <label>目标地区</label>
+      <select id="pxCountry"><option value="">选择国家/地区…</option></select>
+    </div>
+    <div class="px-ctrl" id="pxCtrl" style="display:none">
+      <button type="button" class="qa-b" id="pxTest">⚡ 开始优选延迟</button>
+      <button type="button" class="qa-b" id="pxStop" style="display:none">■ 停止</button>
+      <span class="px-prog" id="pxProg"></span>
+    </div>
+    <div class="px-loading" id="pxLoading" style="display:none">加载中…</div>
+    <div class="px-list" id="pxList"></div>
+    <div class="px-bar" id="pxBar" style="display:none">
+      <span style="font-size:13px;color:var(--muted)" id="pxSelCount">已选 0</span>
+      <div style="flex:1"></div>
+      <button type="button" class="qa-b" id="pxAddSel">追加选中</button>
+      <button type="button" class="qa-b" id="pxAddAll">追加全部存活</button>
+    </div>
+  </div>
+
+</main>
+<!-- QR 弹窗（二维码在浏览器本地生成，链接不外发） -->
+<div class="qr-mask" id="qrMask">
+  <div class="qr-card">
+    <h4 id="qrTitle">二维码</h4>
+    <img class="qr-img" id="qrImg" alt="QR">
+    <div class="qr-url" id="qrUrl"></div>
+    <button type="button" class="qr-close">关闭</button>
+  </div>
+</div>
+<script>
+var _qaIps=[],_qaUrl='',_qaPort='443';
+var V=id=>document.getElementById(id);
+var val=id=>V(id).value.trim();
+var setv=(id,v)=>{V(id).value=v==null?'':v;};
+var setck=(id,v)=>{V(id).checked=!!v;};
+
+fetch('/admin/config.json').then(function(r){return r.json()}).then(function(c){
+  ['uuid','host','proxyip','echSni','echDns','subName','wsPath','ipCount'].forEach(function(k){setv(k,c[k]);});
+  setv('fingerprint',c.fingerprint||'chrome');
+  setv('ipList',c.customIPs);
+  setv('apiTxt',c.subApi);setv('cfgTxt',c.subConfig);
+  ['enable0rtt','skipCert','randomPort','subEmoji'].forEach(function(k){setck(k,c[k]);});
+  V('ispTag').textContent=c.ispName||'通用';
+  V('hostTag').textContent=c.host||'待配置';
+  updateBadge(c.customIPs||'');
+  loadSublist();
+  buildSubLinks();
+});
+
+function updateBadge(text){
+  var lines=text.split('\n').filter(function(l){return l.trim()&&!l.trim().startsWith('#');});
+  var ips=0,apis=0;
+  lines.forEach(function(l){l.trim().startsWith('api:')?apis++:ips++;});
+  var parts=[];
+  if(ips)parts.push(ips+' IP');
+  if(apis)parts.push(apis+' API');
+  V('ipCountBadge').textContent=parts.length?parts.join(' + '):'自动';
+}
+
+V('ipList').addEventListener('input',function(){updateBadge(V('ipList').value);});
+
+V('saveBtn').onclick=function(){
+  var body={uuid:val('uuid'),host:val('host'),proxyip:val('proxyip'),customIPs:val('ipList'),
+    subName:val('subName'),wsPath:val('wsPath'),fingerprint:val('fingerprint'),ipCount:val('ipCount'),
+    echSni:val('echSni'),echDns:val('echDns'),subApi:val('apiTxt'),subConfig:val('cfgTxt'),
+    enable0rtt:V('enable0rtt').checked,skipCert:V('skipCert').checked,randomPort:V('randomPort').checked,subEmoji:V('subEmoji').checked};
+  var b=V('saveBtn');b.disabled=true;b.textContent='保存中…';
+  fetch('/admin/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){return r.json()}).then(function(j){
+    V('savedMsg').textContent=j.ok?'✓ 已保存':'保存失败';
+    V('hostTag').textContent=body.host||'待配置';
+    if(j.ok)buildSubLinks();
+    setTimeout(function(){V('savedMsg').textContent='';},2500);
+  }).catch(function(){V('savedMsg').textContent='保存失败';}).finally(function(){b.disabled=false;b.textContent='保存配置';});
+};
+
+/* Quick-add API */
+V('qaBtn').onclick=function(){
+  var url=val('qaUrl'),port=V('qaPort').value||'443',btn=V('qaBtn'),st=V('qaSt'),pv=V('qaPreview'),acts=V('qaActs');
+  if(!url){st.className='qa-st er';st.textContent='请输入 URL';return;}
+  btn.disabled=true;btn.textContent='获取中…';st.textContent='';pv.classList.remove('show');pv.innerHTML='';acts.classList.remove('show');_qaIps=[];
+  fetch('/admin/getapi?url='+encodeURIComponent(url)+'&port='+port).then(function(r){return r.json()}).then(function(j){
+    if(j.ok&&j.data.length){
+      _qaIps=j.data;_qaUrl=url;_qaPort=port;
+      /* Show preview list */
+      pv.innerHTML='';
+      j.data.forEach(function(ip){var d=document.createElement('div');d.className='qa-pv-item';d.textContent=ip;pv.appendChild(d);});
+      pv.classList.add('show');
+      /* Show action buttons ABOVE preview */
+      V('qaAddIp').textContent='追加 '+j.data.length+' 条 IP';
+      acts.classList.add('show');
+      st.className='qa-st ok';st.textContent='✓ 获取到 '+j.data.length+' 条';
+    }else{
+      st.className='qa-st er';st.textContent=j.msg||'返回为空';
+    }
+  }).catch(function(e){st.className='qa-st er';st.textContent='✗ '+e.message;}).finally(function(){btn.disabled=false;btn.textContent='获取并预览';});
+};
+
+V('qaAddIp').onclick=function(){
+  if(!_qaIps.length)return;
+  var ta=V('ipList');ta.value=(ta.value.trim()?ta.value.trim()+'\n':'')+_qaIps.join('\n');
+  updateBadge(ta.value);
+  V('qaPreview').classList.remove('show');V('qaPreview').innerHTML='';
+  V('qaActs').classList.remove('show');_qaIps=[];
+  V('qaSt').className='qa-st ok';V('qaSt').textContent='✓ 已追加 IP';
+};
+
+V('qaAddApi').onclick=function(){
+  if(!_qaUrl)return;
+  var ta=V('ipList');
+  var apiLine='api:'+_qaUrl+(_qaPort&&_qaPort!=='443'?':'+_qaPort:'');
+  ta.value=(ta.value.trim()?ta.value.trim()+'\n':'')+apiLine;
+  updateBadge(ta.value);
+  V('qaPreview').classList.remove('show');V('qaPreview').innerHTML='';
+  V('qaActs').classList.remove('show');_qaIps=[];_qaUrl='';
+  V('qaSt').className='qa-st ok';V('qaSt').textContent='✓ 已追加 API';
+};
+
+/* CloudflareSpeedTest 导入：取每行第一列 IP，按 IP#优选 追加到优选列表（跳过表头/重复） */
+function _bareAddr(line){
+  var a=line.trim();if(!a||a[0]==='#')return '';
+  var hi=a.indexOf('#');if(hi>=0)a=a.slice(0,hi);a=a.trim();
+  if(a.toLowerCase().indexOf('api:')===0)return '';
+  if(a.indexOf(']:')>=0)a=a.slice(0,a.indexOf(']:')+1);
+  else if(a.indexOf('.')>=0){var lc=a.lastIndexOf(':');if(lc>=0&&/^\d+$/.test(a.slice(lc+1)))a=a.slice(0,lc);}
+  return a;
+}
+V('cstBtn').onclick=function(){
+  var st=V('cstSt'),raw=V('cstInput').value;
+  var ipRe=/^(?:\d{1,3}\.){3}\d{1,3}$|^[0-9a-fA-F:]+:[0-9a-fA-F:]+$/;
+  var ta=V('ipList'),seen={};
+  ta.value.split(/\r?\n/).forEach(function(l){var a=_bareAddr(l);if(a)seen[a]=1;});
+  var added=[],n=0;
+  raw.split(/\r?\n/).forEach(function(l){
+    var cols=l.split(',');
+    var f=(cols[0]||'').trim().replace(/^\[|\]$/g,'');
+    if(!f||!ipRe.test(f)||seen[f])return;
+    seen[f]=1;n++;
+    added.push(f+'#优选');
+  });
+  if(!added.length){st.className='qa-st er';st.textContent='未识别到新 IP';return;}
+  ta.value=(ta.value.trim()?ta.value.trim()+'\n':'')+added.join('\n');
+  updateBadge(ta.value);
+  V('cstInput').value='';
+  st.className='qa-st ok';st.textContent='✓ 导入 '+added.length+' 条';
+};
+
+function fillSel(sel,data,cur){
+  while(sel.options.length)sel.remove(0);
+  function add(p,l,v){var o=document.createElement('option');o.value=v;o.textContent=l;p.appendChild(o);}
+  (data||[]).forEach(function(it){if(it&&it.options){var g=document.createElement('optgroup');g.label=it.label;it.options.forEach(function(o){add(g,o.label,o.value);});sel.appendChild(g);}else if(it)add(sel,it.label,it.value);});
+  var c=document.createElement('option');c.value='__c';c.textContent='自定义…';sel.appendChild(c);
+  if(cur){sel.value=cur;if(sel.value!==cur)sel.value='__c';}else sel.value='';
+}
+function bindSel(selId,txtId){var s=V(selId),t=V(txtId),row=V(txtId+'row');s.onchange=function(){if(s.value==='__c'){row.style.display='';t.value='';t.focus();}else{t.value=s.value;row.style.display='none';}};}
+bindSel('apiSel','apiTxt');bindSel('cfgSel','cfgTxt');
+function loadSublist(){
+  fetch('/admin/sublist').then(function(r){return r.json()}).then(function(j){
+    fillSel(V('apiSel'),j.api,val('apiTxt'));fillSel(V('cfgSel'),j.config,val('cfgTxt'));
+    V('apiTxtrow').style.display=V('apiSel').value==='__c'?'':'none';
+    V('cfgTxtrow').style.display=V('cfgSel').value==='__c'?'':'none';
+  }).catch(function(){});
+}
+
+/* === 订阅链接行：填链接 / 复制 / 二维码 / 折叠 === */
+function buildSubLinks(){
+  var origin=location.origin;
+  Array.prototype.forEach.call(document.querySelectorAll('.sub-row'),function(row){
+    if(row.getAttribute('data-type')==='node')return;
+    row.querySelector('.sub-link').value=origin+'/sub'+(row.getAttribute('data-q')||'');
+  });
+  var nodeRow=document.querySelector('.sub-row[data-type="node"]');
+  if(nodeRow){
+    var inp=nodeRow.querySelector('.sub-link');inp.value='加载中…';
+    fetch('/sub?target=plain').then(function(r){return r.text()}).then(function(t){
+      var first=t.split('\n').map(function(s){return s.trim()}).filter(Boolean)[0]||'';
+      inp.value=first||'（暂无节点：请先填写 UUID / 域名 / 优选IP 并保存）';
+    }).catch(function(){inp.value='（节点获取失败）';});
+  }
+}
+function copyText(url,cb,btn){
+  if(!url||url.charAt(0)==='（'||url==='加载中…')return;
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(cb).catch(function(){window.prompt('复制链接：',url);});
+  else window.prompt('复制链接：',url);
+}
+Array.prototype.forEach.call(document.querySelectorAll('.sub-cp'),function(btn){
+  var orig=btn.textContent;
+  btn.onclick=function(){
+    var url=btn.closest('.sub-row').querySelector('.sub-link').value;
+    copyText(url,function(){btn.classList.add('copied');btn.textContent='✓ 已复制';setTimeout(function(){btn.classList.remove('copied');btn.textContent=orig;},1500);},btn);
+  };
+});
+function showQR(text,title){
+  var img=V('qrImg');V('qrTitle').textContent=title;V('qrUrl').textContent=text;
+  if(typeof qrcode==='undefined'){img.removeAttribute('src');V('qrUrl').textContent='二维码库未加载，请检查网络后重试。\n'+text;}
+  else{try{var qr=qrcode(0,'M');qr.addData(text);qr.make();img.src=qr.createDataURL(6,12);}catch(e){img.removeAttribute('src');V('qrUrl').textContent='链接过长，无法生成二维码。\n'+text;}}
+  V('qrMask').classList.add('show');
+}
+Array.prototype.forEach.call(document.querySelectorAll('.sub-qr'),function(btn){
+  btn.onclick=function(){
+    var row=btn.closest('.sub-row'),url=row.querySelector('.sub-link').value;
+    if(!url||url.charAt(0)==='（'||url==='加载中…')return;
+    showQR(url,row.querySelector('.sub-rl').textContent);
+  };
+});
+V('qrMask').onclick=function(e){if(e.target===this||e.target.classList.contains('qr-close'))this.classList.remove('show');};
+V('subFold').onclick=function(){var l=V('subList').classList.toggle('folded');this.style.transform=l?'rotate(-90deg)':'';};
+
+/* === 反代IP 扫描库 + 浏览器测速 === */
+/* 泛解析+泛证书域名：把 IP 编码进子域名即解析到该 IP，且有合法 HTTPS 证书，
+   故浏览器可直接 fetch 测速。测试全在浏览器，Worker 不参与 → 零封号风险。 */
+var PROBE_HOST='.nip.cml'+'iussss.hidns.vip';
+var ALLJSON_URL='https://zip.cm.edu.kg/all.json'; // 反代扫描库（浏览器直拉，CORS 全开，不经过 Worker）
+var _pxData=[],_pxLoaded={},_pxResults=[],_pxRun=null,_allJson=null;
+function createOpt(v,t){var o=document.createElement('option');o.value=v;o.textContent=t;return o}
+
+/* 拉取扫描库（整库只拉一次，存内存复用） */
+function loadAllJson(){
+  if(_allJson)return Promise.resolve(_allJson);
+  return fetch(ALLJSON_URL).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){_allJson=d;return d;});
+}
+
+function loadProxyCountries(){
+  var sel=V('pxCountry');
+  sel.options[0].textContent='加载中…';
+  loadAllJson().then(function(d){
+    while(sel.options.length)sel.remove(0);
+    var cmap=(d.list&&d.list.country)||{};
+    /* 单遍扫出每个国家的中文名/旗帜 */
+    var info={};
+    (d.data||[]).forEach(function(it){var m=it.meta;if(m&&m.country&&!info[m.country])info[m.country]={cn:m.country_cn||m.country,emoji:m.country_emoji||''};});
+    V('pxUpdated').textContent=((d.list&&d.list.ips)||0)+' IP · '+(d.generated_at||'').slice(0,10);
+    sel.appendChild(createOpt('','选择国家/地区…'));
+    Object.keys(cmap).map(function(code){return {code:code,count:cmap[code],cn:(info[code]||{}).cn||code,emoji:(info[code]||{}).emoji||''};})
+      .sort(function(a,b){return b.count-a.count;})
+      .forEach(function(c){sel.appendChild(createOpt(c.code,(c.emoji||'')+' '+c.cn+' ('+c.count+')'));});
+  }).catch(function(){sel.options[0].textContent='加载失败';});
+}
+
+/* --- 单个 IP 浏览器测速 --- */
+function ipv4HexLabel(ip){return ip.split('.').map(function(p){return (Number(p)&255).toString(16).padStart(2,'0')}).join('').toUpperCase();}
+function probeUrl(ip,port){
+  var label=ip.indexOf(':')>=0?ip.toLowerCase().replace(/:/g,'-'):ipv4HexLabel(ip);
+  return 'https://'+label+PROBE_HOST+':'+port+'/ip.json?_t='+Date.now();
+}
+function fetchTO(url,method,ms,run){
+  var ctrl=new AbortController();var t=setTimeout(function(){ctrl.abort();},ms);
+  if(run)run.ctrls.push(ctrl);
+  return fetch(url,{method:method,cache:'no-store',signal:ctrl.signal}).finally(function(){clearTimeout(t);});
+}
+function testOne(ip,port,timeout,run){
+  var url=probeUrl(ip,port);
+  function opt(attempt){
+    return fetchTO(url,'OPTIONS',timeout*2,run).then(function(r){
+      if(r.ok)return true;if(attempt<2)return opt(attempt+1);throw new Error('opt '+r.status);
+    },function(e){if(run&&run.stopped)throw e;if(attempt<2)return opt(attempt+1);throw e;});
+  }
+  return opt(0).then(function(){
+    var t0=performance.now();
+    return fetchTO(url,'GET',timeout,run).then(function(r){
+      if(!r.ok)throw new Error('get '+r.status);
+      return r.json().then(function(data){
+        var ms=Math.max(1,Math.round(performance.now()-t0));
+        if(ms>timeout)throw new Error('slow');
+        return {ip:ip,port:port,ms:ms,ipType:data.ipType||'',colo:data.colo||'',city:data.city||'',country:data.country||''};
+      });
+    });
+  });
+}
+
+V('pxCountry').onchange=function(){
+  var code=this.value;
+  stopPxTest();_pxResults=[];
+  V('pxList').classList.remove('show');V('pxBar').style.display='none';V('pxCtrl').style.display='none';
+  if(!code)return;
+  function go(ips){_pxData=ips;V('pxCtrl').style.display='flex';V('pxProg').textContent=ips.length+' 个待测，点击开始';}
+  if(_pxLoaded[code]){go(_pxLoaded[code]);return;}
+  V('pxLoading').style.display='block';
+  loadAllJson().then(function(d){
+    V('pxLoading').style.display='none';
+    var ips=[];
+    (d.data||[]).forEach(function(it){
+      var m=it.meta;
+      if(m&&m.country===code)ips.push({ip:it.ip,port:(it.port&&it.port[0])||443,colo:(m.colo&&m.colo.iata)||'',city:(m.colo&&m.colo.city)||''});
+    });
+    _pxLoaded[code]=ips;go(ips);
+  }).catch(function(){V('pxLoading').style.display='none';V('pxCtrl').style.display='flex';V('pxProg').textContent='加载失败';});
+};
+
+/* --- 测速编排（并发 + 进度 + 实时渲染） --- */
+V('pxTest').onclick=function(){startPxTest();};
+V('pxStop').onclick=function(){stopPxTest();};
+function startPxTest(){
+  if(!_pxData.length)return;
+  stopPxTest();
+  var run={stopped:false,ctrls:[]};_pxRun=run;_pxResults=[];
+  V('pxList').innerHTML='';V('pxList').classList.add('show');V('pxBar').style.display='flex';
+  V('pxTest').style.display='none';V('pxStop').style.display='';
+  var total=_pxData.length,done=0,alive=0,idx=0,CONC=10,TIMEOUT=2500;
+  function upd(){V('pxProg').textContent='测试 '+done+'/'+total+' · 存活 '+alive;}
+  upd();updatePxCount();
+  function next(){
+    if(run.stopped||idx>=total)return;
+    var item=_pxData[idx++];
+    testOne(item.ip,item.port,TIMEOUT,run).then(function(res){
+      if(run.stopped)return;alive++;_pxResults.push(res);renderPxResults();
+    }).catch(function(){}).finally(function(){
+      if(run.stopped)return;done++;upd();
+      if(done>=total){finishPxTest();}else next();
+    });
+  }
+  for(var i=0;i<Math.min(CONC,total);i++)next();
+}
+function stopPxTest(){
+  if(_pxRun){_pxRun.stopped=true;_pxRun.ctrls.forEach(function(c){try{c.abort();}catch(e){}});_pxRun=null;}
+  V('pxTest').style.display='';V('pxStop').style.display='none';
+}
+function finishPxTest(){_pxRun=null;V('pxTest').style.display='';V('pxStop').style.display='none';V('pxProg').textContent+=' · 完成';}
+
+function renderPxResults(){
+  _pxResults.sort(function(a,b){return a.ms-b.ms;});
+  var html='';
+  _pxResults.forEach(function(r,i){
+    var cls=r.ms<80?'fast':(r.ms<200?'mid':'slow');
+    var fam=r.ipType==='ipv6'?'<span class="px-fam v6">v6</span>':(r.ipType==='ipv4'?'<span class="px-fam v4">v4</span>':'');
+    html+='<label class="px-item"><input type="checkbox" value="'+i+'" class="px-cb">'
+      +'<span class="px-ms '+cls+'">'+r.ms+'ms</span>'
+      +'<span class="px-ip">'+r.ip+':'+r.port+'</span>'+fam
+      +'<span class="px-colo">'+(r.colo||r.city||'')+'</span></label>';
+  });
+  V('pxList').innerHTML=html;updatePxCount();
+}
+function updatePxCount(){var n=V('pxList').querySelectorAll('.px-cb:checked').length;V('pxSelCount').textContent='已选 '+n+' / 存活 '+_pxResults.length;}
+V('pxList').addEventListener('change',function(e){if(e.target.classList&&e.target.classList.contains('px-cb'))updatePxCount();});
+
+V('pxAddSel').onclick=function(){
+  var cbs=V('pxList').querySelectorAll('.px-cb:checked'),picked=[];
+  cbs.forEach(function(cb){var d=_pxResults[parseInt(cb.value)];if(d)picked.push(d.ip+':'+d.port);});
+  if(!picked.length)return;
+  var inp=V('proxyip'),cur=inp.value.trim();
+  inp.value=(cur?cur+', ':'')+picked.join(', ');
+};
+V('pxAddAll').onclick=function(){
+  var all=_pxResults.map(function(d){return d.ip+':'+d.port;});
+  if(!all.length)return;
+  var inp=V('proxyip'),cur=inp.value.trim();
+  inp.value=(cur?cur+', ':'')+all.join(', ');
+};
+loadProxyCountries();
+</script>
+<script>
+/* ===== 概览状态镜像（附加层，不触及上面的业务逻辑） ===== */
+(function(){
+  ['ispTag','hostTag','ipCountBadge'].forEach(function(id){
+    var src=document.getElementById(id),dst=document.getElementById('stat-'+id);
+    if(!src||!dst)return;
+    var sync=function(){dst.textContent=src.textContent||'…';};
+    new MutationObserver(sync).observe(src,{childList:true,characterData:true,subtree:true});
+    sync();
+  });
+})();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+</body></html>
