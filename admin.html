@@ -315,6 +315,7 @@ a{color:inherit;text-decoration:none}
     <div class="ip-head">
       <span class="t">🌍 反代测速</span>
       <span class="badge" id="pxUpdated">…</span>
+      <button type="button" class="qa-b" id="pxRefresh" title="重新拉取 all.json">↻ 刷新</button>
     </div>
     <div class="field">
       <label>目标地区</label>
@@ -528,7 +529,7 @@ V('subFold').onclick=function(){var f=V('subList').classList.toggle('folded');th
 /* 扫描库仍由浏览器直拉、选国家；测速改由 Worker 实测（POST /admin/pxtest），
    量的是 Worker→反代 的真实链路延迟。分批游标 _pxCursor 只存内存，刷新即失效。 */
 var ALLJSON_URL='https://zip.cm.edu.kg/all.json'; // 反代扫描库（浏览器直拉，CORS 全开，不经过 Worker）
-var _pxData=[],_pxLoaded={},_pxResults=[],_pxRun=null,_allJson=null,_pxCursor=0;
+var _pxData=[],_pxLoaded={},_pxRun=null,_allJson=null,_pxCursor=0;
 function createOpt(v,t){var o=document.createElement('option');o.value=v;o.textContent=t;return o}
 
 /* 拉取扫描库（整库只拉一次，存内存复用） */
@@ -554,16 +555,29 @@ function loadProxyCountries(){
   }).catch(function(){sel.options[0].textContent='加载失败';});
 }
 
-/* --- 选国家：载入该国全部反代 IP，重置分批游标（仅内存，刷新失效） --- */
+/* --- 刷新：清缓存，重新拉取 all.json 并重建国家列表 --- */
+V('pxRefresh').onclick=function(){
+  _allJson=null;_pxLoaded={};_pxData=[];_pxCursor=0;stopPxTest();
+  V('pxCountry').value='';V('pxList').innerHTML='';V('pxList').classList.remove('show');
+  V('pxBar').style.display='none';V('pxCtrl').style.display='none';
+  V('pxUpdated').textContent='刷新中…';
+  loadProxyCountries();
+};
+
+/* --- 选国家：列出该国全部反代 IP（CF 自有排前），延迟列待测；分批游标仅内存，刷新失效 --- */
 V('pxCountry').onchange=function(){
   var code=this.value;
-  stopPxTest();_pxResults=[];_pxCursor=0;
+  stopPxTest();_pxData=[];_pxCursor=0;
   V('pxList').innerHTML='';V('pxList').classList.remove('show');V('pxBar').style.display='none';V('pxCtrl').style.display='none';
   V('pxTest').textContent='⚡ 开始优选延迟';
   if(!code)return;
-  function go(ips){_pxData=ips;V('pxCtrl').style.display='flex';
+  function go(ips){
+    _pxData=ips;_pxCursor=0;
     var nc=ips.filter(function(x){return x.cf;}).length;
-    V('pxProg').textContent='共 '+ips.length+' 个'+(nc?'（含 '+nc+' 个 CF 自有，已排前）':'（无 CF 自有，仅第三方反代）')+'，每次测 N 个，点击开始';}
+    V('pxCtrl').style.display='flex';V('pxBar').style.display='flex';
+    V('pxProg').textContent='共 '+ips.length+' 个'+(nc?'（含 '+nc+' 个 CF 自有，已排前）':'（无 CF 自有，仅第三方反代）')+'，每次测 '+pxBatchN()+' 个';
+    renderPxList(); // 选完即列出全部 IP，延迟列待测
+  }
   if(_pxLoaded[code]){go(_pxLoaded[code]);return;}
   V('pxLoading').style.display='block';
   loadAllJson().then(function(d){
@@ -573,7 +587,7 @@ V('pxCountry').onchange=function(){
       var m=it.meta;
       if(m&&m.country===code){
         var cf=(m.asn===13335)||/cloudflare/i.test(m.asOrganization||'');
-        ips.push({ip:it.ip,port:(it.port&&it.port[0])||443,colo:(m.colo&&m.colo.iata)||'',city:(m.colo&&m.colo.city)||'',org:m.asOrganization||'',cf:cf});
+        ips.push({ip:it.ip,port:(it.port&&it.port[0])||443,colo:(m.colo&&m.colo.iata)||'',org:m.asOrganization||'',cf:cf,ipType:it.ip.indexOf(':')>=0?'ipv6':'ipv4',ms:undefined});
       }
     });
     ips.sort(function(a,b){return (b.cf?1:0)-(a.cf?1:0);}); // CF 自有 IP 排到最前，优先测
@@ -581,30 +595,28 @@ V('pxCountry').onchange=function(){
   }).catch(function(){V('pxLoading').style.display='none';V('pxCtrl').style.display='flex';V('pxProg').textContent='加载失败';});
 };
 
-/* --- Worker 实测编排：取下一批 N 个 → POST /admin/pxtest 并发实测 → 追加结果，游标前移 --- */
+/* --- 测速编排：取下一批 N 个 → POST /admin/pxtest 测网络 RTT → 就地回填延迟，游标前移 --- */
 V('pxTest').onclick=function(){startPxTest();};
 V('pxStop').onclick=function(){stopPxTest();};
 function pxBatchN(){var n=parseInt(V('pxBatch').value,10);if(!(n>=1))n=10;if(n>20)n=20;return n;}
+function aliveCount(){return _pxData.filter(function(d){return d.ms>0;}).length;}
 function startPxTest(){
   if(!_pxData.length||_pxRun)return;
   var total=_pxData.length;
   if(_pxCursor>=total){V('pxProg').textContent='已全部测完 '+total+'/'+total;return;}
-  var N=pxBatchN(),batch=_pxData.slice(_pxCursor,_pxCursor+N);
+  var N=pxBatchN(),start=_pxCursor,batch=_pxData.slice(start,start+N);
   _pxCursor+=batch.length; // 立即前移：下次从未测过的继续
   var ctrl=new AbortController();_pxRun=ctrl;
   V('pxList').classList.add('show');V('pxBar').style.display='flex';
   V('pxTest').style.display='none';V('pxStop').style.display='';
-  V('pxProg').textContent='测试中… 已测 '+_pxCursor+'/'+total+' · 存活 '+_pxResults.length;
+  V('pxProg').textContent='测试中… 已测 '+_pxCursor+'/'+total+' · 存活 '+aliveCount();
   fetch('/admin/pxtest',{method:'POST',headers:{'Content-Type':'application/json'},signal:ctrl.signal,
     body:JSON.stringify({targets:batch.map(function(b){return{ip:b.ip,port:b.port};})})})
     .then(function(r){return r.json();})
     .then(function(j){
-      (j.results||[]).forEach(function(res){
-        if(!res||res.ms<0)return; // -1 = HTTPS 首字节超时/失败，视为不可用，跳过
-        var meta=batch.filter(function(b){return b.ip===res.ip&&b.port===res.port;})[0]||{};
-        _pxResults.push({ip:res.ip,port:res.port,ms:res.ms,rtt:(res.rtt==null?-1:res.rtt),ipType:res.ip.indexOf(':')>=0?'ipv6':'ipv4',colo:meta.colo||'',org:meta.org||'',cf:!!meta.cf});
-      });
-      renderPxResults();finishBatch(total);
+      var map={};(j.results||[]).forEach(function(res){if(res)map[res.ip+':'+res.port]=res.ms;});
+      for(var i=start;i<start+batch.length&&i<total;i++){var d=_pxData[i],k=d.ip+':'+d.port;d.ms=(k in map)?map[k]:-1;}
+      renderPxList();finishBatch(total);
     })
     .catch(function(e){if(ctrl.signal.aborted)return;V('pxProg').textContent='实测失败：'+(e&&e.message||e);finishBatch(total);});
 }
@@ -613,40 +625,51 @@ function finishBatch(total){
   V('pxStop').style.display='none';V('pxTest').style.display='';
   var more=_pxCursor<total;
   V('pxTest').textContent=more?('⚡ 继续测下 '+pxBatchN()+' 个'):'✓ 已测完，重选地区可重测';
-  V('pxProg').textContent=(more?'已测 ':'全部完成 ')+_pxCursor+'/'+total+' · 存活 '+_pxResults.length;
+  V('pxProg').textContent=(more?'已测 ':'全部完成 ')+_pxCursor+'/'+total+' · 存活 '+aliveCount();
 }
 function stopPxTest(){
   if(_pxRun){try{_pxRun.abort();}catch(e){}_pxRun=null;}
   V('pxStop').style.display='none';V('pxTest').style.display='';
 }
 
-function renderPxResults(){
-  _pxResults.sort(function(a,b){return a.ms-b.ms;});
+/* 测试顺序按 CF 优先（_pxData 固定）；显示则按延迟重排：存活(升序)→待测→超时 */
+function pxGroup(r){return r.ms>0?0:(r.ms===undefined?1:2);}
+function renderPxList(){
+  var rows=_pxData.map(function(r,i){return{r:r,i:i};});
+  rows.sort(function(a,b){
+    var ga=pxGroup(a.r),gb=pxGroup(b.r);
+    if(ga!==gb)return ga-gb;          // 存活在最上，超时沉底
+    if(ga===0)return a.r.ms-b.r.ms;   // 存活组按延迟从快到慢
+    return a.i-b.i;                    // 其余保持原始(CF 优先)顺序
+  });
   var html='';
-  _pxResults.forEach(function(r,i){
-    var cls=r.ms<120?'fast':(r.ms<250?'mid':'slow');
-    var fam=r.ipType==='ipv6'?'<span class="px-fam v6">v6</span>':(r.ipType==='ipv4'?'<span class="px-fam v4">v4</span>':'');
+  rows.forEach(function(x){
+    var r=x.r,i=x.i,lat;
+    if(r.ms===undefined)lat='<span class="px-ms">待测</span>';
+    else if(r.ms<0)lat='<span class="px-ms slow">超时</span>';
+    else{var cls=r.ms<120?'fast':(r.ms<250?'mid':'slow');lat='<span class="px-ms '+cls+'">'+r.ms+'ms</span>';}
+    var fam=r.ipType==='ipv6'?'<span class="px-fam v6">v6</span>':'<span class="px-fam v4">v4</span>';
     var cf=r.cf?'<span class="px-fam v4">CF自有</span>':'';
-    var src='网络'+(r.rtt>0?r.rtt+'ms':'—')+(r.colo?' · '+r.colo:'')+(r.org?' · '+r.org:'');
+    var src=(r.colo||'')+(r.org?(r.colo?' · ':'')+r.org:'');
     html+='<label class="px-item"><input type="checkbox" value="'+i+'" class="px-cb">'
-      +'<span class="px-ms '+cls+'">'+r.ms+'ms</span>'
+      +lat
       +'<span class="px-ip">'+r.ip+':'+r.port+'</span>'+fam+cf
       +'<span class="px-colo">'+src+'</span></label>';
   });
   V('pxList').innerHTML=html;updatePxCount();
 }
-function updatePxCount(){var n=V('pxList').querySelectorAll('.px-cb:checked').length;V('pxSelCount').textContent='已选 '+n+' / 存活 '+_pxResults.length;}
+function updatePxCount(){var n=V('pxList').querySelectorAll('.px-cb:checked').length;V('pxSelCount').textContent='已选 '+n+' / 存活 '+aliveCount();}
 V('pxList').addEventListener('change',function(e){if(e.target.classList&&e.target.classList.contains('px-cb'))updatePxCount();});
 
 V('pxAddSel').onclick=function(){
   var cbs=V('pxList').querySelectorAll('.px-cb:checked'),picked=[];
-  cbs.forEach(function(cb){var d=_pxResults[parseInt(cb.value)];if(d)picked.push(d.ip+':'+d.port);});
+  cbs.forEach(function(cb){var d=_pxData[parseInt(cb.value)];if(d)picked.push(d.ip+':'+d.port);});
   if(!picked.length)return;
   var inp=V('proxyip'),cur=inp.value.trim();
   inp.value=(cur?cur+', ':'')+picked.join(', ');
 };
 V('pxAddAll').onclick=function(){
-  var all=_pxResults.map(function(d){return d.ip+':'+d.port;});
+  var all=_pxData.filter(function(d){return d.ms>0;}).map(function(d){return d.ip+':'+d.port;});
   if(!all.length)return;
   var inp=V('proxyip'),cur=inp.value.trim();
   inp.value=(cur?cur+', ':'')+all.join(', ');
