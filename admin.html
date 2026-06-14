@@ -561,7 +561,9 @@ V('pxCountry').onchange=function(){
   V('pxList').innerHTML='';V('pxList').classList.remove('show');V('pxBar').style.display='none';V('pxCtrl').style.display='none';
   V('pxTest').textContent='⚡ 开始优选延迟';
   if(!code)return;
-  function go(ips){_pxData=ips;V('pxCtrl').style.display='flex';V('pxProg').textContent='共 '+ips.length+' 个，每次测 N 个，点击开始';}
+  function go(ips){_pxData=ips;V('pxCtrl').style.display='flex';
+    var nc=ips.filter(function(x){return x.cf;}).length;
+    V('pxProg').textContent='共 '+ips.length+' 个'+(nc?'（含 '+nc+' 个 CF 自有，已排前）':'（无 CF 自有，仅第三方反代）')+'，每次测 N 个，点击开始';}
   if(_pxLoaded[code]){go(_pxLoaded[code]);return;}
   V('pxLoading').style.display='block';
   loadAllJson().then(function(d){
@@ -569,8 +571,12 @@ V('pxCountry').onchange=function(){
     var ips=[];
     (d.data||[]).forEach(function(it){
       var m=it.meta;
-      if(m&&m.country===code)ips.push({ip:it.ip,port:(it.port&&it.port[0])||443,colo:(m.colo&&m.colo.iata)||'',city:(m.colo&&m.colo.city)||''});
+      if(m&&m.country===code){
+        var cf=(m.asn===13335)||/cloudflare/i.test(m.asOrganization||'');
+        ips.push({ip:it.ip,port:(it.port&&it.port[0])||443,colo:(m.colo&&m.colo.iata)||'',city:(m.colo&&m.colo.city)||'',org:m.asOrganization||'',cf:cf});
+      }
     });
+    ips.sort(function(a,b){return (b.cf?1:0)-(a.cf?1:0);}); // CF 自有 IP 排到最前，优先测
     _pxLoaded[code]=ips;go(ips);
   }).catch(function(){V('pxLoading').style.display='none';V('pxCtrl').style.display='flex';V('pxProg').textContent='加载失败';});
 };
@@ -594,9 +600,9 @@ function startPxTest(){
     .then(function(r){return r.json();})
     .then(function(j){
       (j.results||[]).forEach(function(res){
-        if(!res||res.ms<0)return; // -1 = 超时/失败，跳过
+        if(!res||res.ms<0)return; // -1 = HTTPS 首字节超时/失败，视为不可用，跳过
         var meta=batch.filter(function(b){return b.ip===res.ip&&b.port===res.port;})[0]||{};
-        _pxResults.push({ip:res.ip,port:res.port,ms:res.ms,ipType:res.ip.indexOf(':')>=0?'ipv6':'ipv4',colo:meta.colo||'',city:meta.city||''});
+        _pxResults.push({ip:res.ip,port:res.port,ms:res.ms,rtt:(res.rtt==null?-1:res.rtt),ipType:res.ip.indexOf(':')>=0?'ipv6':'ipv4',colo:meta.colo||'',org:meta.org||'',cf:!!meta.cf});
       });
       renderPxResults();finishBatch(total);
     })
@@ -618,12 +624,14 @@ function renderPxResults(){
   _pxResults.sort(function(a,b){return a.ms-b.ms;});
   var html='';
   _pxResults.forEach(function(r,i){
-    var cls=r.ms<80?'fast':(r.ms<200?'mid':'slow');
+    var cls=r.ms<120?'fast':(r.ms<250?'mid':'slow');
     var fam=r.ipType==='ipv6'?'<span class="px-fam v6">v6</span>':(r.ipType==='ipv4'?'<span class="px-fam v4">v4</span>':'');
+    var cf=r.cf?'<span class="px-fam v4">CF自有</span>':'';
+    var src='网络'+(r.rtt>0?r.rtt+'ms':'—')+(r.colo?' · '+r.colo:'')+(r.org?' · '+r.org:'');
     html+='<label class="px-item"><input type="checkbox" value="'+i+'" class="px-cb">'
       +'<span class="px-ms '+cls+'">'+r.ms+'ms</span>'
-      +'<span class="px-ip">'+r.ip+':'+r.port+'</span>'+fam
-      +'<span class="px-colo">'+(r.colo||r.city||'')+'</span></label>';
+      +'<span class="px-ip">'+r.ip+':'+r.port+'</span>'+fam+cf
+      +'<span class="px-colo">'+src+'</span></label>';
   });
   V('pxList').innerHTML=html;updatePxCount();
 }
