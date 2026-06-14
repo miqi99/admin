@@ -99,7 +99,7 @@ a{color:inherit;text-decoration:none}
 .btn-2,.qa-b{padding:11px 19px;border-radius:12px;background:#fff;color:var(--blue-d);border:1px solid rgba(59,130,246,.32);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;box-shadow:0 2px 8px rgba(99,102,241,.07);transition:background .15s,border-color .15s,transform .06s,box-shadow .15s}
 .btn-2:hover,.qa-b:hover{background:rgba(59,130,246,.08);box-shadow:0 4px 14px rgba(99,102,241,.13)}
 .btn-2:active,.qa-b:active{transform:translateY(1px)}
-.qa-b:disabled{opacity:.5;cursor:not-allowed;box-shadow:none}
+.qa-b:disabled{opacity:.38;cursor:not-allowed;box-shadow:none;pointer-events:none}
 .qa-st{font-size:13px;min-height:18px;flex-shrink:0}.qa-st.ok{color:var(--green)}.qa-st.er{color:var(--red)}
 .qa-acts{display:none;gap:11px;padding:0 var(--pad-x) 14px}
 .qa-acts.show{display:flex}
@@ -151,9 +151,18 @@ a{color:inherit;text-decoration:none}
 .px-item input{width:16px;height:16px;accent-color:var(--purple);cursor:pointer;flex-shrink:0}
 .px-item .px-ip{font-family:var(--mono);font-size:13px;color:#5b4bd6;flex:1}
 .px-item .px-colo{font-size:12px;background:#f1f3fa;padding:3px 9px;border-radius:6px;color:var(--muted);flex-shrink:0}
+.px-country-wrap{display:flex;flex-wrap:wrap;gap:7px;padding:14px var(--pad-x);border-bottom:1px solid var(--line)}
+.px-ctag{padding:5px 12px;border-radius:999px;border:1px solid var(--border);background:var(--soft);font-size:13px;color:var(--ink-2);cursor:pointer;white-space:nowrap;user-select:none;transition:background .15s,border-color .15s,color .15s}
+.px-ctag:hover{background:rgba(124,92,255,.09);border-color:rgba(124,92,255,.3);color:var(--purple)}
+.px-ctag.active{background:var(--purple);color:#fff;border-color:var(--purple-d)}
 .px-loading{text-align:center;padding:24px;color:var(--muted);font-size:14px}
+.px-bsz-wrap{display:flex;gap:5px;align-items:center}
+.px-bsz{padding:6px 15px;border-radius:999px;border:1px solid var(--border);background:var(--soft);font-size:13px;color:var(--ink-2);cursor:pointer;font-family:inherit;font-weight:600;transition:background .15s,border-color .15s,color .15s;line-height:1}
+.px-bsz:hover:not(.active){background:rgba(124,92,255,.09);border-color:rgba(124,92,255,.3);color:var(--purple)}
+.px-bsz.active{background:var(--purple);color:#fff;border-color:var(--purple-d)}
 .px-bar{display:flex;align-items:center;gap:11px;padding:16px var(--pad-x);border-top:1px solid var(--line)}
-.px-ctrl{display:flex;align-items:center;gap:13px;padding:16px var(--pad-x);border-top:1px solid var(--line);flex-wrap:wrap}
+.px-ctrl{display:flex;align-items:center;justify-content:center;gap:14px;padding:16px var(--pad-x);border-top:1px solid var(--line);flex-wrap:wrap}
+.px-ctrl-g{display:flex;align-items:center;gap:11px;flex-shrink:0}
 .px-prog{font-size:13px;color:var(--muted)}
 .px-item .px-ms{font-family:var(--mono);font-size:13px;font-weight:700;flex-shrink:0;width:62px}
 .px-ms.fast{color:#0f9f6e}.px-ms.mid{color:#d97706}.px-ms.slow{color:#dc2626}
@@ -324,34 +333,6 @@ a{color:inherit;text-decoration:none}
     </div>
   </div>
 
-  <!-- ===== 核心配置（独占一行） ===== -->
-  <div class="card">
-    <div class="card-h"><span class="ico">🔑</span>核心配置</div>
-    <div class="field"><label>UUID</label><input id="uuid" placeholder="必填"></div>
-    <div class="field"><label>域名</label><input id="host" placeholder="your.domain.com"></div>
-    <div class="field"><label>ECH SNI</label><input id="echSni" placeholder="可选"></div>
-    <div class="field"><label>ECH DNS</label><input id="echDns" placeholder="可选"></div>
-  </div>
-
-  <!-- ===== 订阅设置（独占一行） ===== -->
-  <div class="card">
-    <div class="card-h"><span class="ico">📡</span>订阅设置</div>
-    <div class="field"><label>节点名称</label><input id="subName" placeholder="节点名称"></div>
-    <div class="field"><label>WS 路径</label><input id="wsPath" placeholder="/ws"></div>
-    <div class="field"><label>TLS 指纹</label><select id="fingerprint"><option value="chrome">Chrome</option><option value="firefox">Firefox</option><option value="safari">Safari</option><option value="random">随机</option></select></div>
-    <div class="field"><label>生成数量</label><input id="ipCount" type="number" min="1" max="100"></div>
-    <div class="field"><label>转换后端</label><select id="apiSel"></select></div>
-    <div class="field sub" id="apiTxtrow" style="display:none"><label>自定义</label><input id="apiTxt" placeholder="https://后端地址"></div>
-    <div class="field"><label>规则配置</label><select id="cfgSel"></select></div>
-    <div class="field sub" id="cfgTxtrow" style="display:none"><label>自定义</label><input id="cfgTxt" placeholder="规则 ini 的 URL"></div>
-    <div class="checks">
-      <label class="ck"><input type="checkbox" id="enable0rtt"><span>0-RTT</span></label>
-      <label class="ck"><input type="checkbox" id="skipCert"><span>跳过证书</span></label>
-      <label class="ck"><input type="checkbox" id="randomPort"><span>随机端口</span></label>
-      <label class="ck"><input type="checkbox" id="subEmoji"><span>Emoji</span></label>
-    </div>
-  </div>
-
   <!-- ===== 反代测速 ===== -->
   <div class="card">
     <div class="ip-head">
@@ -360,23 +341,58 @@ a{color:inherit;text-decoration:none}
       <button type="button" class="qa-b" id="pxRefresh" title="重新拉取 all.json">↻ 刷新</button>
     </div>
     <div class="field"><label>反代IP</label><input id="proxyip" placeholder="域名 或 IP:端口，多个逗号分隔（测速结果追加到这里）"></div>
-    <div class="field">
-      <label>目标地区</label>
-      <select id="pxCountry"><option value="">选择国家/地区…</option></select>
-    </div>
-    <div class="px-ctrl" id="pxCtrl" style="display:none">
-      <input type="number" id="pxBatch" value="10" min="1" max="20" title="每次测速的 IP 数量" style="width:64px">
-      <button type="button" class="qa-b" id="pxTest">⚡ 开始优选延迟</button>
-      <button type="button" class="qa-b" id="pxStop" style="display:none">■ 停止</button>
-      <span class="px-prog" id="pxProg"></span>
+    <div class="px-country-wrap" id="pxCountryWrap"><span style="font-size:13px;color:var(--muted)">加载中…</span></div>
+    <div class="px-ctrl" id="pxCtrl">
+      <div class="px-ctrl-g">
+        <span style="font-size:13px;color:var(--muted);font-weight:600">每批</span>
+        <div class="px-bsz-wrap">
+          <button type="button" class="px-bsz" data-n="5">5</button>
+          <button type="button" class="px-bsz active" data-n="10">10</button>
+          <button type="button" class="px-bsz" data-n="20">20</button>
+        </div>
+        <input type="hidden" id="pxBatch" value="10">
+        <button type="button" class="qa-b" id="pxTest" disabled>⚡ 开始优选延迟</button>
+        <button type="button" class="qa-b" id="pxStop" style="display:none">■ 停止</button>
+      </div>
+      <div class="px-ctrl-g">
+        <span class="px-prog" id="pxProg"></span>
+        <span style="font-size:13px;color:var(--muted)" id="pxSelCount"></span>
+        <button type="button" class="qa-b" id="pxAddSel" disabled>追加选中</button>
+      </div>
     </div>
     <div class="px-loading" id="pxLoading" style="display:none">加载中…</div>
     <div class="px-list" id="pxList"></div>
-    <div class="px-bar" id="pxBar" style="display:none">
-      <span style="font-size:13px;color:var(--muted)" id="pxSelCount">已选 0</span>
-      <div style="flex:1"></div>
-      <button type="button" class="qa-b" id="pxAddSel">追加选中</button>
-      <button type="button" class="qa-b" id="pxAddAll">追加全部存活</button>
+  </div>
+
+  <!-- ===== 核心配置 ===== -->
+  <div class="card">
+    <div class="card-h"><span class="ico">🔑</span>核心配置<button type="button" class="sub-fold" id="coreFold">展开</button></div>
+    <div id="coreBody" class="sub-list folded">
+      <div class="field"><label>UUID</label><input id="uuid" placeholder="必填"></div>
+      <div class="field"><label>域名</label><input id="host" placeholder="your.domain.com"></div>
+      <div class="field"><label>ECH SNI</label><input id="echSni" placeholder="可选"></div>
+      <div class="field"><label>ECH DNS</label><input id="echDns" placeholder="可选"></div>
+    </div>
+  </div>
+
+  <!-- ===== 订阅设置 ===== -->
+  <div class="card">
+    <div class="card-h"><span class="ico">📡</span>订阅设置<button type="button" class="sub-fold" id="subCfgFold">展开</button></div>
+    <div id="subCfgBody" class="sub-list folded">
+      <div class="field"><label>节点名称</label><input id="subName" placeholder="节点名称"></div>
+      <div class="field"><label>WS 路径</label><input id="wsPath" placeholder="/ws"></div>
+      <div class="field"><label>TLS 指纹</label><select id="fingerprint"><option value="chrome">Chrome</option><option value="firefox">Firefox</option><option value="safari">Safari</option><option value="random">随机</option></select></div>
+      <div class="field"><label>生成数量</label><input id="ipCount" type="number" min="1" max="100"></div>
+      <div class="field"><label>转换后端</label><select id="apiSel"></select></div>
+      <div class="field sub" id="apiTxtrow" style="display:none"><label>自定义</label><input id="apiTxt" placeholder="https://后端地址"></div>
+      <div class="field"><label>规则配置</label><select id="cfgSel"></select></div>
+      <div class="field sub" id="cfgTxtrow" style="display:none"><label>自定义</label><input id="cfgTxt" placeholder="规则 ini 的 URL"></div>
+      <div class="checks">
+        <label class="ck"><input type="checkbox" id="enable0rtt"><span>0-RTT</span></label>
+        <label class="ck"><input type="checkbox" id="skipCert"><span>跳过证书</span></label>
+        <label class="ck"><input type="checkbox" id="randomPort"><span>随机端口</span></label>
+        <label class="ck"><input type="checkbox" id="subEmoji"><span>Emoji</span></label>
+      </div>
     </div>
   </div>
 
@@ -567,42 +583,49 @@ Array.prototype.forEach.call(document.querySelectorAll('.sub-qr'),function(btn){
 });
 V('qrMask').onclick=function(e){if(e.target===this||e.target.classList.contains('qr-close'))this.classList.remove('show');};
 V('subFold').onclick=function(){var f=V('subList').classList.toggle('folded');this.textContent=f?'展开':'收起';};
+V('coreFold').onclick=function(){var f=V('coreBody').classList.toggle('folded');this.textContent=f?'展开':'收起';};
+V('subCfgFold').onclick=function(){var f=V('subCfgBody').classList.toggle('folded');this.textContent=f?'展开':'收起';};
 
 /* === 反代IP 扫描库（浏览器选国家）+ Worker 实测（B'：Worker→反代 完整 HTTPS 首字节）=== */
 /* 扫描库仍由浏览器直拉、选国家；测速改由 Worker 实测（POST /admin/pxtest），
    量的是 Worker→反代 的真实链路延迟。分批游标 _pxCursor 只存内存，刷新即失效。 */
 var ALLJSON_URL='https://zip.cm.edu.kg/all.json'; // 反代扫描库（浏览器直拉，CORS 全开，不经过 Worker）
-var _pxData=[],_pxLoaded={},_pxRun=null,_allJson=null,_pxCursor=0;
-function createOpt(v,t){var o=document.createElement('option');o.value=v;o.textContent=t;return o}
+var _pxData=[],_pxLoaded={},_pxRun=null,_allJson=null,_pxCursor=0,_pxActiveCode='';
 
 /* 拉取扫描库（整库只拉一次，存内存复用） */
 function loadAllJson(){
   if(_allJson)return Promise.resolve(_allJson);
-  return fetch(ALLJSON_URL).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){_allJson=d;return d;});
+  var ctrl=new AbortController(),tid=setTimeout(function(){ctrl.abort();},15000);
+  return fetch(ALLJSON_URL,{signal:ctrl.signal}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){_allJson=d;return d;}).finally(function(){clearTimeout(tid);});
 }
 
 function loadProxyCountries(){
-  var sel=V('pxCountry');
-  sel.options[0].textContent='加载中…';
+  var wrap=V('pxCountryWrap');
+  wrap.innerHTML='<span style="font-size:13px;color:var(--muted)">加载中…</span>';
   loadAllJson().then(function(d){
-    while(sel.options.length)sel.remove(0);
     var cmap=(d.list&&d.list.country)||{};
-    /* 单遍扫出每个国家的中文名/旗帜 */
     var info={};
     (d.data||[]).forEach(function(it){var m=it.meta;if(m&&m.country&&!info[m.country])info[m.country]={cn:m.country_cn||m.country,emoji:m.country_emoji||''};});
     V('pxUpdated').textContent=((d.list&&d.list.ips)||0)+' IP · '+(d.generated_at||'').slice(0,10);
-    sel.appendChild(createOpt('','选择国家/地区…'));
-    Object.keys(cmap).map(function(code){return {code:code,count:cmap[code],cn:(info[code]||{}).cn||code,emoji:(info[code]||{}).emoji||''};})
-      .sort(function(a,b){return b.count-a.count;})
-      .forEach(function(c){sel.appendChild(createOpt(c.code,(c.emoji||'')+' '+c.cn+' ('+c.count+')'));});
-  }).catch(function(){sel.options[0].textContent='加载失败';});
+    var tags=Object.keys(cmap).map(function(code){return{code:code,count:cmap[code],cn:(info[code]||{}).cn||code,emoji:(info[code]||{}).emoji||''};})
+      .sort(function(a,b){return b.count-a.count;});
+    wrap.innerHTML='';
+    tags.forEach(function(c){
+      var el=document.createElement('span');
+      el.className='px-ctag'+(c.code===_pxActiveCode?' active':'');
+      el.dataset.code=c.code;
+      el.textContent=(c.emoji?c.emoji+' ':'')+c.cn+' ('+c.count+')';
+      el.onclick=function(){selectCountry(c.code);};
+      wrap.appendChild(el);
+    });
+  }).catch(function(){V('pxUpdated').textContent='加载失败';wrap.innerHTML='<span style="color:var(--red);font-size:13px">加载失败，点「↻ 刷新」重试</span>';});
 }
 
 /* --- 刷新：清缓存，重新拉取 all.json 并重建国家列表 --- */
 V('pxRefresh').onclick=function(){
-  _allJson=null;_pxLoaded={};_pxData=[];_pxCursor=0;stopPxTest();
-  V('pxCountry').value='';V('pxList').innerHTML='';V('pxList').classList.remove('show');
-  V('pxBar').style.display='none';V('pxCtrl').style.display='none';
+  _allJson=null;_pxLoaded={};_pxData=[];_pxCursor=0;_pxActiveCode='';stopPxTest();
+  V('pxList').innerHTML='';V('pxList').classList.remove('show');
+  V('pxTest').disabled=true;V('pxAddSel').disabled=true;V('pxSelCount').textContent='';
   V('pxUpdated').textContent='刷新中…';
   loadProxyCountries();
 }
@@ -626,18 +649,20 @@ V('cfRefresh').onclick=fetchCfUsage;
 fetchCfUsage();;
 
 /* --- 选国家：列出该国全部反代 IP（CF 自有排前），延迟列待测；分批游标仅内存，刷新失效 --- */
-V('pxCountry').onchange=function(){
-  var code=this.value;
-  stopPxTest();_pxData=[];_pxCursor=0;
-  V('pxList').innerHTML='';V('pxList').classList.remove('show');V('pxBar').style.display='none';V('pxCtrl').style.display='none';
-  V('pxTest').textContent='⚡ 开始优选延迟';
+function selectCountry(code){
+  stopPxTest();_pxData=[];_pxCursor=0;_pxActiveCode=code;
+  V('pxList').innerHTML='';V('pxList').classList.remove('show');
+  V('pxTest').disabled=true;V('pxTest').textContent='⚡ 开始优选延迟';
+  V('pxAddSel').disabled=true;V('pxSelCount').textContent='';
+  Array.prototype.forEach.call(V('pxCountryWrap').querySelectorAll('.px-ctag'),function(el){
+    el.classList.toggle('active',el.dataset.code===code);
+  });
   if(!code)return;
   function go(ips){
     _pxData=ips;_pxCursor=0;
     var nc=ips.filter(function(x){return x.cf;}).length;
-    V('pxCtrl').style.display='flex';V('pxBar').style.display='flex';
-    V('pxProg').textContent='共 '+ips.length+' 个'+(nc?'（含 '+nc+' 个 CF 自有，已排前）':'（无 CF 自有，仅第三方反代）')+'，每次测 '+pxBatchN()+' 个';
-    renderPxList(); // 选完即列出全部 IP，延迟列待测
+    V('pxTest').disabled=false;
+    renderPxList();
   }
   if(_pxLoaded[code]){go(_pxLoaded[code]);return;}
   V('pxLoading').style.display='block';
@@ -652,15 +677,16 @@ V('pxCountry').onchange=function(){
         ips.push({ip:it.ip,ports:pts,port:pts[0],colo:(m.colo&&m.colo.iata)||'',org:m.asOrganization||'',cf:cf,ipType:it.ip.indexOf(':')>=0?'ipv6':'ipv4',ms:undefined});
       }
     });
-    ips.sort(function(a,b){return (b.cf?1:0)-(a.cf?1:0);}); // CF 自有 IP 排到最前，优先测
+    ips.sort(function(a,b){return(b.cf?1:0)-(a.cf?1:0);});
     _pxLoaded[code]=ips;go(ips);
   }).catch(function(){V('pxLoading').style.display='none';V('pxCtrl').style.display='flex';V('pxProg').textContent='加载失败';});
-};
+}
 
 /* --- 测速编排：取下一批 N 个 → POST /admin/pxtest 测网络 RTT → 就地回填延迟，游标前移 --- */
 V('pxTest').onclick=function(){startPxTest();};
 V('pxStop').onclick=function(){stopPxTest();};
 function pxBatchN(){var n=parseInt(V('pxBatch').value,10);if(!(n>=1))n=10;if(n>20)n=20;return n;}
+Array.prototype.forEach.call(document.querySelectorAll('.px-bsz'),function(btn){btn.onclick=function(){Array.prototype.forEach.call(document.querySelectorAll('.px-bsz'),function(b){b.classList.remove('active');});btn.classList.add('active');V('pxBatch').value=btn.dataset.n;};});
 function aliveCount(){return _pxData.filter(function(d){return d.ms>0;}).length;}
 function startPxTest(){
   if(!_pxData.length||_pxRun)return;
@@ -669,7 +695,7 @@ function startPxTest(){
   var N=pxBatchN(),start=_pxCursor,batch=_pxData.slice(start,start+N);
   _pxCursor+=batch.length; // 立即前移：下次从未测过的继续
   var ctrl=new AbortController();_pxRun=ctrl;
-  V('pxList').classList.add('show');V('pxBar').style.display='flex';
+  V('pxList').classList.add('show');
   V('pxTest').style.display='none';V('pxStop').style.display='';
   V('pxProg').textContent='测试中… 已测 '+_pxCursor+'/'+total+' · 存活 '+aliveCount();
   fetch('/admin/pxtest',{method:'POST',headers:{'Content-Type':'application/json'},signal:ctrl.signal,
@@ -725,7 +751,7 @@ function renderPxList(){
   });
   V('pxList').innerHTML=html;updatePxCount();
 }
-function updatePxCount(){var n=V('pxList').querySelectorAll('.px-cb:checked').length;V('pxSelCount').textContent='已选 '+n+' / 存活 '+aliveCount();}
+function updatePxCount(){var n=V('pxList').querySelectorAll('.px-cb:checked').length,a=aliveCount();V('pxSelCount').textContent=a?'已选 '+n+' / 存活 '+a:'';V('pxAddSel').disabled=!(n&&a);}
 V('pxList').addEventListener('change',function(e){if(e.target.classList&&e.target.classList.contains('px-cb'))updatePxCount();});
 
 V('pxAddSel').onclick=function(){
@@ -734,12 +760,6 @@ V('pxAddSel').onclick=function(){
   if(!picked.length)return;
   var inp=V('proxyip'),cur=inp.value.trim();
   inp.value=(cur?cur+', ':'')+picked.join(', ');
-};
-V('pxAddAll').onclick=function(){
-  var all=_pxData.filter(function(d){return d.ms>0;}).map(function(d){return d.ip+':'+d.port;});
-  if(!all.length)return;
-  var inp=V('proxyip'),cur=inp.value.trim();
-  inp.value=(cur?cur+', ':'')+all.join(', ');
 };
 loadProxyCountries();
 </script>
