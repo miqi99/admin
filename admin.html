@@ -162,6 +162,16 @@ a{color:inherit;text-decoration:none}
 .px-hint{font-size:13px;color:var(--muted);padding:14px var(--pad-x);border-top:1px solid var(--line);line-height:1.75}
 .px-hint b{color:var(--ink-2)}
 
+/* ===== CF usage stats ===== */
+.cf-stats{display:flex;gap:12px;padding:20px var(--pad-x);flex-wrap:wrap}
+.cf-stat{flex:1;min-width:110px;background:var(--soft);border:1px solid var(--border);border-radius:14px;padding:14px 16px;text-align:center}
+.cf-stat .cf-n{font-size:21px;font-weight:800;color:var(--ink);font-family:var(--mono);letter-spacing:-.02em}
+.cf-stat .cf-l{font-size:12px;color:var(--muted);margin-top:5px;font-weight:500}
+.cf-bar-wrap{padding:0 var(--pad-x) 18px}
+.cf-bar{height:8px;background:var(--soft);border-radius:999px;overflow:hidden;border:1px solid var(--border)}
+.cf-bar-fill{height:100%;background:var(--grad);border-radius:999px;transition:width .5s}
+.cf-bar-label{font-size:12px;color:var(--muted);margin-top:6px;text-align:right}
+
 /* ===== toggle switch ===== */
 .toggle-sw{display:flex;align-items:center;gap:8px;cursor:pointer;flex-shrink:0;user-select:none}
 .toggle-sw input{display:none}
@@ -256,6 +266,31 @@ a{color:inherit;text-decoration:none}
         <input class="sub-link" readonly>
         <div class="sub-btns"><button type="button" class="sub-qr">▦ 二维码</button><button type="button" class="sub-cp">复制订阅</button></div>
       </div>
+    </div>
+  </div>
+
+  <!-- ===== CF 使用统计 ===== -->
+  <div class="card">
+    <div class="card-h">
+      <span class="ico">📊</span>使用统计
+      <span class="card-sub" id="cfUpdated"></span>
+      <button type="button" class="qa-b" id="cfRefresh" style="margin-left:10px">↻ 刷新</button>
+    </div>
+    <div class="cf-stats">
+      <div class="cf-stat"><div class="cf-n" id="cfWorkers">—</div><div class="cf-l">Workers 请求</div></div>
+      <div class="cf-stat"><div class="cf-n" id="cfPages">—</div><div class="cf-l">Pages 请求</div></div>
+      <div class="cf-stat"><div class="cf-n" id="cfTotal">—</div><div class="cf-l">今日合计</div></div>
+      <div class="cf-stat"><div class="cf-n">100,000</div><div class="cf-l">日配额</div></div>
+    </div>
+    <div class="cf-bar-wrap">
+      <div class="cf-bar"><div class="cf-bar-fill" id="cfBarFill" style="width:0%"></div></div>
+      <div class="cf-bar-label" id="cfBarLabel">— / 100,000</div>
+    </div>
+    <div class="field"><label>Account ID</label><input id="cfAccountId" placeholder="CF Dashboard 右侧边栏可找到"></div>
+    <div class="field" style="border-bottom:none"><label>API Token</label><input type="password" id="cfApiToken" placeholder="需要 Account Analytics:Read 权限"></div>
+    <div style="padding:14px var(--pad-x);border-top:1px solid var(--line);display:flex;align-items:center;gap:14px">
+      <button type="button" class="qa-b" id="cfSaveBtn">保存并刷新</button>
+      <span class="qa-st" id="cfSt"></span>
     </div>
   </div>
 
@@ -576,7 +611,36 @@ V('pxRefresh').onclick=function(){
   V('pxBar').style.display='none';V('pxCtrl').style.display='none';
   V('pxUpdated').textContent='刷新中…';
   loadProxyCountries();
+}
+
+/* === CF 使用统计 === */
+function fmtN(n){return typeof n==='number'?n.toLocaleString():'—';}
+function updateCfDisplay(d){
+  V('cfWorkers').textContent=fmtN(d.workers);
+  V('cfPages').textContent=fmtN(d.pages);
+  V('cfTotal').textContent=fmtN(d.total);
+  var pct=d.max>0?Math.min(100,(d.total/d.max)*100):0;
+  V('cfBarFill').style.width=pct.toFixed(1)+'%';
+  V('cfBarLabel').textContent=fmtN(d.total)+' / '+fmtN(d.max);
+  V('cfUpdated').textContent=d.success?'今日数据':'未配置或获取失败';
+}
+function fetchCfUsage(){
+  V('cfUpdated').textContent='加载中…';
+  fetch('/admin/cfusage').then(function(r){return r.json();}).then(updateCfDisplay).catch(function(){V('cfUpdated').textContent='加载失败';});
+}
+V('cfRefresh').onclick=fetchCfUsage;
+V('cfSaveBtn').onclick=function(){
+  var aid=val('cfAccountId'),tok=val('cfApiToken'),st=V('cfSt'),btn=V('cfSaveBtn');
+  if(!aid||!tok){st.className='qa-st er';st.textContent='请填写 Account ID 和 API Token';return;}
+  btn.disabled=true;st.className='qa-st';st.textContent='保存中…';
+  fetch('/admin/cfsave',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accountId:aid,apiToken:tok})})
+    .then(function(r){return r.json();}).then(function(j){
+      if(j.ok){st.className='qa-st ok';st.textContent='✓ 已保存';V('cfAccountId').value='';V('cfApiToken').value='';fetchCfUsage();}
+      else{st.className='qa-st er';st.textContent='保存失败';}
+    }).catch(function(){st.className='qa-st er';st.textContent='请求失败';})
+    .finally(function(){btn.disabled=false;});
 };
+fetchCfUsage();;
 
 /* --- 选国家：列出该国全部反代 IP（CF 自有排前），延迟列待测；分批游标仅内存，刷新失效 --- */
 V('pxCountry').onchange=function(){
@@ -601,7 +665,8 @@ V('pxCountry').onchange=function(){
       var m=it.meta;
       if(m&&m.country===code){
         var cf=(m.asn===13335)||/cloudflare/i.test(m.asOrganization||'');
-        ips.push({ip:it.ip,port:(it.port&&it.port[0])||443,colo:(m.colo&&m.colo.iata)||'',org:m.asOrganization||'',cf:cf,ipType:it.ip.indexOf(':')>=0?'ipv6':'ipv4',ms:undefined});
+        var pts=(it.port&&it.port.length)?it.port:[443];
+        ips.push({ip:it.ip,ports:pts,port:pts[0],colo:(m.colo&&m.colo.iata)||'',org:m.asOrganization||'',cf:cf,ipType:it.ip.indexOf(':')>=0?'ipv6':'ipv4',ms:undefined});
       }
     });
     ips.sort(function(a,b){return (b.cf?1:0)-(a.cf?1:0);}); // CF 自有 IP 排到最前，优先测
@@ -625,11 +690,15 @@ function startPxTest(){
   V('pxTest').style.display='none';V('pxStop').style.display='';
   V('pxProg').textContent='测试中… 已测 '+_pxCursor+'/'+total+' · 存活 '+aliveCount();
   fetch('/admin/pxtest',{method:'POST',headers:{'Content-Type':'application/json'},signal:ctrl.signal,
-    body:JSON.stringify({targets:batch.map(function(b){return{ip:b.ip,port:b.port};})})})
+    body:JSON.stringify({targets:(function(){var t=[];batch.forEach(function(b){b.ports.forEach(function(p){t.push({ip:b.ip,port:p});});});return t;})()})})
     .then(function(r){return r.json();})
     .then(function(j){
-      var map={};(j.results||[]).forEach(function(res){if(res)map[res.ip+':'+res.port]=res.ms;});
-      for(var i=start;i<start+batch.length&&i<total;i++){var d=_pxData[i],k=d.ip+':'+d.port;d.ms=(k in map)?map[k]:-1;}
+      var imap={};(j.results||[]).forEach(function(res){if(!res)return;if(!imap[res.ip])imap[res.ip]={};imap[res.ip][res.port]=res.ms;});
+      for(var i=start;i<start+batch.length&&i<total;i++){
+        var d=_pxData[i],pm=imap[d.ip]||{},bMs=-1,bPt=d.ports[0];
+        d.ports.forEach(function(p){var ms=pm[p];if(ms===undefined)return;if(ms>0&&(bMs<0||ms<bMs)){bMs=ms;bPt=p;}});
+        d.ms=bMs;d.port=bPt;
+      }
       renderPxList();finishBatch(total);
     })
     .catch(function(e){if(ctrl.signal.aborted)return;V('pxProg').textContent='实测失败：'+(e&&e.message||e);finishBatch(total);});
@@ -665,9 +734,10 @@ function renderPxList(){
     var fam=r.ipType==='ipv6'?'<span class="px-fam v6">v6</span>':'<span class="px-fam v4">v4</span>';
     var cf=r.cf?'<span class="px-fam v4">CF自有</span>':'';
     var src=(r.colo||'')+(r.org?(r.colo?' · ':'')+r.org:'');
+    var ipDisp=(r.ms===undefined&&r.ports.length>1)?r.ip+':'+r.ports.join('/'):r.ip+':'+r.port;
     html+='<label class="px-item"><input type="checkbox" value="'+i+'" class="px-cb">'
       +lat
-      +'<span class="px-ip">'+r.ip+':'+r.port+'</span>'+fam+cf
+      +'<span class="px-ip">'+ipDisp+'</span>'+fam+cf
       +'<span class="px-colo">'+src+'</span></label>';
   });
   V('pxList').innerHTML=html;updatePxCount();
